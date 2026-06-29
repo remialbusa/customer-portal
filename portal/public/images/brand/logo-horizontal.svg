@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 130" role="img" aria-label="BioTechnical Solutions Inc. — Providing Services Beyond Expectations">
+  <title>BioTechnical Solutions Inc.</title>
+
+  <!--
+    MC monogram (matches the attached reference):
+    A tall blue "M" inside a large green sweeping "C" arc that opens to
+    the right. The C extends slightly above and below the M, sweeping wide
+    around the M's left side.
+  -->
+
+  <!-- Green sweeping C arc (drawn first so the M sits on top of it) -->
+  <g fill="none" stroke="#2E9B3F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- C opens to the right: starts at top-right, sweeps LEFT and DOWN, ends at bottom-right -->
+    <path d="M 105 25
+             C 55 12, 12 28, 12 65
+             C 12 102, 55 118, 105 105" />
+  </g>
+
+  <!-- Blue M (tall, two outer strokes + central V) -->
+  <g fill="none" stroke="#1E5BD6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left outer stroke (top-left to bottom-center) -->
+    <path d="M 32 32 L 57 108" />
+    <!-- Right outer stroke (bottom-center to top-right) -->
+    <path d="M 57 108 L 82 32" />
+    <!-- Inner V (the small point in the middle of the M) -->
+    <path d="M 47 70 L 57 88 L 67 70" />
+  </g>
+
+  <!-- EKG waveform (green) running under the wordmark -->
+  <g fill="none" stroke="#2E9B3F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 195 115 L 215 115 L 225 100 L 235 125 L 245 95 L 255 120 L 265 115 L 370 115 L 380 105 L 390 123 L 400 98 L 410 122 L 420 115 L 695 115" />
+  </g>
+
+  <!-- Wordmark -->
+  <text x="200" y="56" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="700" fill="#1E5BD6" letter-spacing="0.5">BioTechnical Solutions Inc.</text>
+
+  <!-- Tagline -->
+  <text x="200" y="98" font-family="Georgia, 'Times New Roman', serif" font-size="15" font-style="italic" fill="#2E9B3F">Providing Services Beyond Expectations</text>
+</svg>

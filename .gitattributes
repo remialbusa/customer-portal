@@ -1,0 +1,19 @@
+# Normalize line endings for cross-platform sanity
+* text=auto eol=lf
+
+# Shell scripts always LF
+*.sh text eol=lf
+
+# Batch / PowerShell CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Windows-only files
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.svg binary
+*.pdf binary

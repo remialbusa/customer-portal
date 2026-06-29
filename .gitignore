@@ -1,0 +1,40 @@
+# ============================================================================
+#  Customer Portal — root .gitignore
+#  The Laravel app's own .gitignore lives in portal/.gitignore and handles
+#  vendor/, node_modules/, public/build/, storage/*, etc. This file only
+#  covers root-level concerns.
+# ============================================================================
+
+# --- Secrets / env ---
+.env
+.env.*
+!.env.example
+
+# --- Obsidian vault (personal notes, NOT for the repo) ---
+CUSTOMER-PORTAL/
+
+# --- Workspace clutter (dev scratch files) ---
+form.html
+tickets_new.html
+tsr-test.txt
+cookies.txt
+verify-out.txt
+
+# --- Push / test artifacts ---
+PUSH-TO-GITHUB.ps1
+_push_run.ps1
+_pushout.txt
+_push_log.txt
+
+# --- IDE / editor ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Generic logs ---
+*.log
