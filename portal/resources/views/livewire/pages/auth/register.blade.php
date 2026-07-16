@@ -53,6 +53,15 @@ new #[Layout('layouts.guest')] class extends Component
     public string $password_confirmation = '';
 
     /**
+     * Equipment fields — customers register their machine brand
+     * and model at sign-up. This becomes the default equipment
+     * for ticket creation (the ticket form shows a dropdown of
+     * their registered machines instead of free-text brand/model).
+     */
+    public string $brand  = '';
+    public string $model  = '';
+
+    /**
      * Live-updated password strength: weak | fair | good | strong.
      */
     public string $passwordStrength = '';
@@ -151,6 +160,10 @@ new #[Layout('layouts.guest')] class extends Component
             'branch'              => ['required', 'string', 'max:255'],
             'region'              => ['nullable', 'string', 'max:100'],
             'address'             => ['nullable', 'string', 'max:500'],
+            // Equipment fields — brand is required (customers must
+            // register at least one machine), model is optional.
+            'brand'               => ['nullable', 'string', 'max:120'],
+            'model'               => ['nullable', 'string', 'max:120'],
         ], [
             'email.required'    => 'Your email is missing. Please use the link your coordinator sent you.',
             'email.email'       => 'That email address looks invalid. Please contact your service coordinator.',
@@ -192,6 +205,8 @@ new #[Layout('layouts.guest')] class extends Component
             'region'       => $validated['region'] ?? null,
             'address'      => $validated['address'] ?? null,
             'account_name' => $validated['accountName'],
+            'brand'        => $validated['brand'] ?? null,
+            'model'        => $validated['model'] ?? null,
         ]);
 
         // Spend the token AFTER the user is created. A failed
@@ -415,6 +430,24 @@ new #[Layout('layouts.guest')] class extends Component
                                 type="password"
                                 name="password_confirmation" required autocomplete="new-password" placeholder="Re-enter your password" />
                 <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+            </div>
+
+            {{-- Equipment fields --}}
+            <div>
+                <x-input-label for="brand" :value="__('Equipment Brand')" />
+                <select wire:model="brand" id="brand" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">{{ __('Select brand (optional)') }}</option>
+                    @foreach(['Mindray', 'Sysmex', 'Horiba', 'Abbott', 'Siemens', 'Beckman Coulter', 'Roche', 'Diatron'] as $b)
+                        <option value="{{ $b }}">{{ $b }}</option>
+                    @endforeach
+                </select>
+                <x-input-error :messages="$errors->get('brand')" class="mt-2" />
+            </div>
+
+            <div>
+                <x-input-label for="model" :value="__('Equipment Model')" />
+                <x-text-input wire:model="model" id="model" class="mt-2" type="text" name="model" autocomplete="off" placeholder="e.g. BC-6800, XN-550" />
+                <x-input-error :messages="$errors->get('model')" class="mt-2" />
             </div>
 
             <x-primary-button class="w-full justify-center" wire:loading.attr="disabled" wire:target="register">

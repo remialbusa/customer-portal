@@ -335,14 +335,14 @@ class MondayClient
      * Detect a "same ticket" re-submit by this customer: returns any
      * OPEN ticket (status not in resolved/closed/done) the customer
      * has whose name matches the proposed subject (case-insensitive,
-     * whitespace-trimmed, prefix-stripped).
+     * whitespace-trimmed, exact match).
      *
-     * Monday's "item name" for a ticket is built in createTicket() as
-     *   "<brand> - <model> | <subject>"
-     * or just "<subject>" when no brand/model is supplied. We strip
-     * the " | " / " - " prefix before comparing so customers who
-     * submit the same subject from a different equipment profile
-     * are still caught as duplicates.
+     * Monday's "item name" for a ticket IS the customer's subject
+     * (verbatim, no "Ticket+<id>" rename, no "Brand - Model | "
+     * prefix — see createTicket()). We compare the stored name to
+     * the subject directly, so customers who re-submit the same
+     * subject from a different equipment profile are still caught
+     * as duplicates.
      *
      * Returns an array of matching tickets (id, name, status_text,
      * priority_text, request_type_text). Empty array = no duplicate.
@@ -372,13 +372,6 @@ class MondayClient
                 $existing = strtolower(trim((string) $t['name']));
                 if ($existing === '') {
                     return false;
-                }
-                // Strip the "<brand> - <model> | " prefix Monday
-                // prepends in createTicket(). We only treat the
-                // *suffix* after the last " | " as the subject.
-                $pipePos = strrpos($existing, ' | ');
-                if ($pipePos !== false) {
-                    $existing = trim(substr($existing, $pipePos + 3));
                 }
                 return $existing === $subject;
             }
@@ -657,12 +650,22 @@ class MondayClient
             ];
         }
 
-        // Build the prefix that goes into the ticket name (brand / model / serial)
-        $prefixParts = array_filter([$data['brand'] ?? null, $data['model'] ?? null]);
-        $name = trim(implode(' - ', $prefixParts) . ' | ' . $data['name']);
-        if (empty($data['brand']) && empty($data['model'])) {
-            $name = $data['name'];
-        }
+        // The item name on Monday IS the customer's subject — verbatim.
+        // We used to:
+        //   1. Prepend "Brand - Model | " to the subject, then strip
+        //      it in findOpenDuplicateTicketForCustomer().
+        //   2. Create with the subject as a placeholder, then rename
+        //      the item to "Ticket+<id>".
+        // Both transformations hid the subject on the board and on
+        // the portal's ticket header. The user wants the subject to
+        // be the visible title, so we just pass it through.
+        //
+        // brand / model / serial are still accepted in $data (for
+        // forward-compat with the customer form), but they no longer
+        // influence the item name. Brand and model live on the
+        // customer record (Customers board) — see services.monday.
+        // customers_columns.brand / .model.
+        $name = (string) $data['name'];
 
         $graphql = <<<'GQL'
         mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {

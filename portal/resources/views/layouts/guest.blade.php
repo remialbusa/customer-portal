@@ -33,7 +33,7 @@
 
                 <div class="relative z-10 p-10">
                     <a href="{{ url('/') }}" class="inline-flex items-center gap-3" wire:navigate>
-                        <img src="{{ asset('images/brand/logo-horizontal.svg') }}"
+                        <img src="{{ asset('images/brand/mcbio-logo.png') }}"
                              alt="BioTechnical Solutions Inc."
                              class="h-12 w-auto brightness-0 invert">
                     </a>
@@ -67,7 +67,7 @@
 
                 <header class="flex items-center justify-between px-6 py-5 md:hidden">
                     <a href="{{ url('/') }}" class="inline-flex items-center" wire:navigate>
-                        <img src="{{ asset('images/brand/logo-horizontal.svg') }}" alt="BioTechnical Solutions Inc." class="h-10 w-auto">
+                        <img src="{{ asset('images/brand/mcbio-logo.png') }}" alt="BioTechnical Solutions Inc." class="h-10 w-auto">
                     </a>
                 </header>
 

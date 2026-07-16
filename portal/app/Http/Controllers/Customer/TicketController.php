@@ -17,10 +17,16 @@ class TicketController extends Controller
     public function create(): View
     {
         $user = auth()->user();
+        
+        // Load customer's registered machines
+        $machines = \App\Models\Machine::where('user_id', $user->id)
+            ->orderBy('is_primary', 'desc')
+            ->orderBy('brand')
+            ->get();
 
         return view('customer.tickets.create', [
             'user'        => $user,
-            'priorities'  => ['Low', 'Medium', 'High', 'Critical'],
+            'machines'    => $machines,
             'requestTypes'=> ['Issue', 'Request'],
         ]);
     }
@@ -33,14 +39,28 @@ class TicketController extends Controller
         $data = $request->validate([
             'subject'      => ['required', 'string', 'max:255'],
             'description'  => ['required', 'string', 'max:5000'],
-            'priority'     => ['required', Rule::in(['Low', 'Medium', 'High', 'Critical'])],
             'request_type' => ['required', Rule::in(['Issue', 'Request'])],
+            'machine_id'   => ['nullable', 'exists:machines,id'],
             'brand'        => ['nullable', 'string', 'max:120'],
             'model'        => ['nullable', 'string', 'max:120'],
             'serial'       => ['nullable', 'string', 'max:120'],
         ]);
 
         $user = $request->user();
+
+        // If machine_id is provided, load the machine and use its brand/model
+        $brand = $data['brand'] ?? null;
+        $model = $data['model'] ?? null;
+        $serial = $data['serial'] ?? null;
+        
+        if (!empty($data['machine_id'])) {
+            $machine = \App\Models\Machine::find($data['machine_id']);
+            if ($machine && $machine->user_id === $user->id) {
+                $brand = $machine->brand;
+                $model = $machine->model;
+                $serial = $machine->serial_number ?? $serial;
+            }
+        }
 
         // Soft duplicate guard: if this customer already has an OPEN
         // ticket with the same subject, refuse the submit on the first
@@ -102,8 +122,8 @@ class TicketController extends Controller
             'name'         => $user->name,
             'email'        => $user->email,
             'account_name' => $user->account_name,
-            'brand'        => $user->brand,
-            'model'        => $user->model,
+            'brand'        => $brand,
+            'model'        => $model,
         ], knownId: $user->monday_id);
 
         if ($customerItemId !== null && $customerItemId !== $user->monday_id) {
@@ -114,13 +134,12 @@ class TicketController extends Controller
         $result = $monday->createTicket([
             'name'            => $data['subject'],
             'description'     => $data['description'],
-            'priority'        => $data['priority'],
             'request_type'    => $data['request_type'],
             'customer_email'  => $user->email,
             'customer_item_id'=> $customerItemId,
-            'brand'           => $data['brand']       ?? null,
-            'model'           => $data['model']       ?? null,
-            'serial'          => $data['serial']      ?? null,
+            'brand'           => $brand,
+            'model'           => $model,
+            'serial'          => $serial,
         ]);
 
         if (empty($result['id'])) {

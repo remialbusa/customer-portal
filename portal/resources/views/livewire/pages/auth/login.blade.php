@@ -86,7 +86,7 @@ new #[Layout('layouts.guest')] class extends Component
             {{ __("Don't have an account?") }}
             <a href="{{ route('register') }}" wire:navigate
                class="font-semibold text-brand-blue hover:text-brand-blue-3 underline-offset-2 hover:underline">
-                {{ __('Create one') }}
+                {{ __('Get an invite link') }}
             </a>
         </p>
     @endif

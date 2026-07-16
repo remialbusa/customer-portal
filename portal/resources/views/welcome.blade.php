@@ -21,7 +21,7 @@
         <header class="border-b border-brand-mist/60 bg-white">
             <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
                 <a href="/" class="flex items-center" wire:navigate>
-                    <img src="{{ asset('images/brand/logo-horizontal.svg') }}"
+                    <img src="{{ asset('images/brand/mcbio-logo.png') }}"
                          alt="BioTechnical Solutions Inc."
                          class="h-10 w-auto">
                 </a>
@@ -34,15 +34,9 @@
                         </a>
                     @else
                         <a href="{{ route('login') }}" wire:navigate
-                           class="text-sm font-semibold text-brand-navy hover:text-brand-blue">
+                           class="rounded-lg bg-brand-cta px-4 py-2 text-sm font-semibold text-white hover:opacity-95 transition">
                             Sign in
                         </a>
-                        @if (Route::has('register'))
-                            <a href="{{ route('register') }}" wire:navigate
-                               class="rounded-lg bg-brand-cta px-4 py-2 text-sm font-semibold text-white hover:opacity-95 transition">
-                                Create account
-                            </a>
-                        @endif
                     @endauth
                 </div>
             </div>
@@ -73,18 +67,12 @@
                                class="inline-flex items-center gap-2 rounded-lg bg-brand-cta px-5 py-3 text-base font-semibold text-white hover:opacity-95 transition">
                                 Sign in
                             </a>
-                            @if (Route::has('register'))
-                                <a href="{{ route('register') }}" wire:navigate
-                                   class="inline-flex items-center rounded-lg border border-brand-mist bg-white px-5 py-3 text-base font-semibold text-brand-navy hover:bg-brand-mist/40 transition">
-                                    Create an account
-                                </a>
-                            @endif
                         @endauth
                     </div>
 
                     <p class="mt-6 text-sm text-brand-slate">
-                        Don't have an account?
-                        <span class="text-brand-navy">Ask your service coordinator to invite you.</span>
+                        Don't have an account yet?
+                        <span class="text-brand-navy">Ask your service coordinator to send you an invite link.</span>
                     </p>
                 </div>
 

@@ -123,4 +123,79 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Equipment catalog
+    |--------------------------------------------------------------------------
+    |
+    | The list of known brands and the models we service. Used by the
+    | customer ticket creation form's Brand / Model <select> dropdowns.
+    | Customers can still type a free-form value via the "Other" entry
+    | — selecting "Other" reveals a free-text input that posts the
+    | custom value as the brand or model.
+    |
+    | Keys are display labels. Models are flat strings; brand-specific
+    | model lists live under each brand.
+    |
+    | NOTE: this is a curated catalog, not a live source of truth. If
+    | the customer types a model that doesn't appear in the catalog,
+    | it still saves — we just won't suggest it next time.
+    */
+    'equipment' => [
+        'brands' => [
+            'Mindray' => [
+                'BC-6800', 'BC-6700', 'BC-6600', 'BC-6200', 'BC-6000',
+                'BC-5390', 'BC-5380', 'BC-5310', 'BC-5300', 'BC-5150',
+                'BC-5140', 'BC-5120', 'BC-5100', 'BC-5000', 'BC-3600', 'BC-3000',
+                'BC-2900', 'BC-2800', 'BC-2600', 'BC-2300', 'BC-2100',
+                'BS-2000M', 'BS-800M', 'BS-600M', 'BS-480', 'BS-380',
+                'BA-88A', 'CF-92', 'DC-80', 'DC-70', 'DC-60',
+            ],
+            'Sysmex' => [
+                'XN-550', 'XN-1000', 'XN-1500', 'XN-2000', 'XN-3000',
+                'XN-3100', 'XN-3300', 'XN-3500', 'XN-4500', 'XN-5500',
+                'XN-9100', 'XN-9200', 'XT-2000i', 'XT-1800i',
+                'XS-800i', 'XS-1000i', 'XE-5000', 'XE-2100', 'XP-300',
+                'UF-1000i', 'UF-5000', 'CS-5100', 'CA-660', 'CA-7000',
+            ],
+            'Horiba' => [
+                'Micros 60', 'Micros CRP', 'ABX Pentra 60', 'ABX Pentra 80',
+                'ABX Pentra 120', 'ABX Pentra XL 80', 'ABX Pentra XL 120',
+                'ABX Pentra DF 120', 'ABX Micros 45', 'ABX Micros ES 60',
+                'Yumizen H550', 'Yumizen H630', 'Yumizen H750',
+            ],
+            'Abbott' => [
+                'Cell-Dyn 3200', 'Cell-Dyn 3500', 'Cell-Dyn 3700',
+                'Cell-Dyn 4000', 'Cell-Dyn Ruby', 'Cell-Dyn Sapphire',
+                'Cell-Dyn Emerald 22', 'Cell-Dyn Emerald 22AL',
+                'Alinity ci-series', 'Alinity hq', 'Alinity hs',
+                'ARCHITECT c4000', 'ARCHITECT c8000', 'ARCHITECT i1000',
+                'ARCHITECT i2000', 'ARCHITECT i6000', 'ARCHITECT i8000',
+            ],
+            'Siemens' => [
+                'ADVIA 120', 'ADVIA 2120', 'ADVIA 360', 'ADVIA 560',
+                'ADVIA Centaur CP', 'ADVIA Centaur XPT', 'ADVIA Chemistry XPT',
+                'Atellica CH 930', 'Atellica IM 1300', 'Atellica IM 1600',
+                'Dimension EXL 200', 'Dimension Vista 1500', 'Dimension Xpand Plus',
+            ],
+            'Beckman Coulter' => [
+                'DxH 500', 'DxH 600', 'DxH 800', 'DxH 900', 'DxH 1000',
+                'DxI 600', 'DxI 800', 'Access 2', 'UniCel DxI 600',
+                'AU480', 'AU5800', 'AU680', 'AU5800', 'AU2700', 'AU5400',
+                'Power Processor', 'LH 500', 'LH 750', 'LH 785',
+            ],
+            'Roche' => [
+                'cobas 6000', 'cobas 8000', 'cobas c 501', 'cobas c 701',
+                'cobas c 702', 'cobas e 411', 'cobas e 601', 'cobas e 602',
+                'cobas 6500', 'cobas 6800', 'cobas 8800', 'cobas p 312',
+                'cobas p 471', 'cobas p 512', 'cobas p 612', 'cobas p 671',
+            ],
+            'Diatron' => [
+                'Abacus 3', 'Abacus 3CP', 'Abacus 380', 'Abacus 5',
+                'Arcus', 'Aquila', 'Olympus', 'Puls Cell 1',
+            ],
+            'Other' => null, // sentinel: free-text input
+        ],
+    ],
+
 ];
