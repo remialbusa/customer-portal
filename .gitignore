@@ -12,6 +12,7 @@
 
 # --- Obsidian vault (personal notes, NOT for the repo) ---
 CUSTOMER-PORTAL/
+.obsidian/
 
 # --- Workspace clutter (dev scratch files) ---
 form.html
@@ -19,6 +20,36 @@ tickets_new.html
 tsr-test.txt
 cookies.txt
 verify-out.txt
+Untitled.base
+"Personnel list_.xlsx"
+password-input.blade.php
+portal/verify_fixes.php
+portal/verify_gary.php
+portal/e2e_gary.php
+portal/ngrok_e2e.php
+portal/check_invite.php
+portal/customer-portal-status.md
+portal/scripts/_*.txt
+portal/scripts/_*.php
+portal/scripts/archive/
+portal/scripts/cache_*.php
+portal/scripts/check_*.php
+portal/scripts/diag_*.php
+portal/scripts/dump_*.php
+portal/scripts/e2e_*.php
+portal/scripts/find_*.php
+portal/scripts/fix_*.php
+portal/scripts/forge_*.php
+portal/scripts/get_*.php
+portal/scripts/issue_*.php
+portal/scripts/list_*.php
+portal/scripts/probe_*.php
+portal/scripts/provision_*.php
+portal/scripts/seed_*.php
+portal/scripts/smoke_*.php
+portal/scripts/test_*.php
+portal/scripts/verify_*.php
+portal/scripts/create_*.php
 
 # --- Push / test artifacts ---
 PUSH-TO-GITHUB.ps1
