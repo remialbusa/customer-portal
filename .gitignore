@@ -22,6 +22,7 @@ cookies.txt
 verify-out.txt
 Untitled.base
 "Personnel list_.xlsx"
+"Personnel list_*.xlsx"
 password-input.blade.php
 portal/verify_fixes.php
 portal/verify_gary.php
