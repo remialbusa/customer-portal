@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Services\MondayClient;
 use App\Support\PersonnelDirectory;
+use App\Support\RegionResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -18,18 +19,27 @@ class TicketController extends Controller
     public function create(): View
     {
         $user = auth()->user();
-        
+
         // Load customer's registered machines
         $machines = \App\Models\Machine::where('user_id', $user->id)
             ->orderBy('is_primary', 'desc')
             ->orderBy('brand')
             ->get();
 
+        // Resolve the customer's physical region so the TSP picker
+        // can be scoped to the team physically closest to them. Falls
+        // back to null when we can't tell where the customer is (e.g.
+        // a brand-new self-registered account that never filled in a
+        // branch or address) — in that case the picker shows all 4
+        // region groups so the customer can still pick someone.
+        $customerRegion = RegionResolver::resolveForCustomer($user);
+
         return view('customer.tickets.create', [
-            'user'         => $user,
-            'machines'     => $machines,
-            'requestTypes' => ['Issue', 'Request'],
-            'tspDirectory' => PersonnelDirectory::forCustomerAssignment(),
+            'user'            => $user,
+            'machines'        => $machines,
+            'requestTypes'    => ['Issue', 'Request'],
+            'tspDirectory'    => PersonnelDirectory::forCustomerAssignment($customerRegion),
+            'customerRegion'  => $customerRegion,
         ]);
     }
 

@@ -236,14 +236,18 @@
                 {{-- ───── Preferred TSPs ─────
                      Customer picks which on-site technicians / IT
                      specialists they'd like assigned to the ticket.
-                     Grouped by region (NCR, North Luzon, Visayas,
-                     Mindanao) so the customer can pick by branch. The
-                     list comes from PersonnelDirectory which reads
-                     the users table — the same source the
-                     PersonnelXlsxSeeder populates from the project
-                     xlsx. Members without a Monday person id (so we
-                     can't assign them via the People column) are
-                     listed but disabled. --}}
+                     The list is scoped to the customer's region (when
+                     we can resolve one) so the picker shows the team
+                     physically closest to them. Region resolution
+                     happens in TicketController::create() via
+                     RegionResolver, which inspects `users.region`,
+                     `users.branch`, and `users.address` in that order.
+
+                     When we can't resolve a region, we fall back to
+                     showing all 4 region groups so the customer can
+                     still pick someone. Members without a Monday
+                     person id (so we can't assign them via the People
+                     column) are listed but disabled. --}}
                 @php
                     // Decode the previous selection back to the
                     // checkbox state when re-rendering after a
@@ -253,6 +257,10 @@
                         ->map(fn ($v) => (int) $v)
                         ->all();
                     $oldTsp = array_flip($oldTsp);
+                    $isScoped = $tspDirectory->contains(fn ($g) => $g['scoped'] ?? false);
+                    $regionLabel = $customerRegion
+                        ? (\App\Support\PersonnelDirectory::REGION_LABELS[$customerRegion] ?? $customerRegion)
+                        : null;
                 @endphp
                 <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden"
                      x-data="{
@@ -271,6 +279,19 @@
                             Optional — pick the field engineers or IT specialists you'd like assigned.
                             Leave blank if you have no preference and we'll route it to the right team.
                         </p>
+                        @if ($isScoped && $regionLabel)
+                            <p class="text-xs text-emerald-700 mt-2 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                                Showing TSPs in <span class="font-semibold">{{ $regionLabel }}</span> based on your registered branch / address.
+                            </p>
+                        @elseif (! $isScoped)
+                            <p class="text-xs text-amber-700 mt-2 flex items-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                                We couldn't determine your area from your profile — showing all available technicians.
+                                <a href="{{ route('profile') }}" class="underline hover:text-amber-900">Update your branch / address</a>
+                                to see only those closest to you.
+                            </p>
+                        @endif
                     </div>
                     <div class="px-6 py-5"
                          x-ref="form">
@@ -287,10 +308,18 @@
                         </div>
 
                         @if ($tspDirectory->every(fn ($g) => $g['members']->isEmpty()))
-                            <p class="text-sm text-gray-500 italic">
-                                No field engineers or IT specialists are currently configured.
-                                Your ticket will still be created — it will be auto-routed to the on-call team.
-                            </p>
+                            @if ($isScoped)
+                                <p class="text-sm text-gray-500 italic">
+                                    No field engineers or IT specialists are currently assigned to your area
+                                    @if ($regionLabel)({{ $regionLabel }})@endif.
+                                    Your ticket will still be created — it will be auto-routed to the nearest available team.
+                                </p>
+                            @else
+                                <p class="text-sm text-gray-500 italic">
+                                    No field engineers or IT specialists are currently configured.
+                                    Your ticket will still be created — it will be auto-routed to the on-call team.
+                                </p>
+                            @endif
                         @else
                             <div class="space-y-5">
                                 @foreach ($tspDirectory as $group)

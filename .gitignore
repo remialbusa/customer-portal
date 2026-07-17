@@ -39,6 +39,7 @@ portal/scripts/dump_*.php
 portal/scripts/e2e_*.php
 portal/scripts/find_*.php
 portal/scripts/fix_*.php
+portal/scripts/inspect_*.php
 portal/scripts/forge_*.php
 portal/scripts/get_*.php
 portal/scripts/issue_*.php

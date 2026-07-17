@@ -47,13 +47,28 @@ class PersonnelDirectory
     ];
 
     /**
-     * @return Collection<int, array{region:string, label:string, members:Collection<int, array>>
-     *         One entry per region (in REGION_ORDER), each with the FSE/ITS
-     *         members sorted by name. Regions with no members are still
-     *         present (with an empty members collection) so the picker
-     *         header always shows.
+     * @param  string|null  $customerRegion  When provided, the picker is
+     *         scoped to TSPs in that region only (the physical area
+     *         closest to the customer). When null, the picker shows
+     *         all 4 region groups. Region code is one of `REGION_ORDER`
+     *         — use `RegionResolver::resolveForCustomer($user)` to map
+     *         a customer's free-text branch/address to that code.
+     *
+     * @return Collection<int, array{
+     *     region: string,
+     *     label: string,
+     *     members: Collection<int, array>,
+     *     scoped: bool  // true when this entry was returned because it
+     *                  // matches the customer's region; false for the
+     *                  // placeholder rows shown when scoped is true but
+     *                  // no TSPs match.
+     * }>
+     *         One entry per region (in REGION_ORDER). When scoped by
+     *         region, the result contains only that one entry. Regions
+     *         with no members are still present (with an empty members
+     *         collection) so the picker header always shows.
      */
-    public static function forCustomerAssignment(): Collection
+    public static function forCustomerAssignment(?string $customerRegion = null): Collection
     {
         $rows = User::query()
             ->whereIn('role', ['fse', 'its'])
@@ -68,8 +83,21 @@ class PersonnelDirectory
         // are always present.
         $byRegion = $rows->groupBy(fn (User $u) => $u->region ?: 'UNASSIGNED');
 
-        return collect(self::REGION_ORDER)
-            ->map(function (string $region) use ($byRegion) {
+        // If the caller's scoping to a specific region, we deliberately
+        // drop TSPs with NULL region (the "noise" rows from past imports
+        // that have no physical area) — showing them to a customer in
+        // NCR would defeat the purpose of the filter. The caller is
+        // expected to render a friendly empty state when scoped is true
+        // and the region has no members.
+        $scoped = $customerRegion !== null
+            && in_array($customerRegion, self::REGION_ORDER, true);
+
+        $regions = $scoped
+            ? [$customerRegion]
+            : self::REGION_ORDER;
+
+        return collect($regions)
+            ->map(function (string $region) use ($byRegion, $scoped) {
                 $members = ($byRegion[$region] ?? collect())
                     ->map(fn (User $u) => [
                         'id'         => $u->id,
@@ -87,6 +115,7 @@ class PersonnelDirectory
                     'region'  => $region,
                     'label'   => self::REGION_LABELS[$region] ?? $region,
                     'members' => $members,
+                    'scoped'  => $scoped,
                 ];
             });
     }
