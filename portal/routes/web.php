@@ -56,6 +56,8 @@ Route::middleware(['auth', 'role:fse,its,manager,admin'])->prefix('tsp')->name('
         ->name('tickets.notes.store');
 
     // Time tracker (Phase 5): start/pause/resume/stop on a ticket.
+    // (Kept for backward-compat; the new UI is a read-only reflection
+    // of Monday's `duration_mm4hesrz` and doesn't call these.)
     Route::post('/tickets/{id}/time/start',  [TspTimeEntryController::class, 'start'])
         ->name('tickets.time.start');
     Route::post('/tickets/{id}/time/pause',  [TspTimeEntryController::class, 'pause'])
@@ -64,6 +66,13 @@ Route::middleware(['auth', 'role:fse,its,manager,admin'])->prefix('tsp')->name('
         ->name('tickets.time.resume');
     Route::post('/tickets/{id}/time/stop',   [TspTimeEntryController::class, 'stop'])
         ->name('tickets.time.stop');
+
+    // Read-only reflection of Monday's `duration_mm4hesrz` time_tracking
+    // column. Polled by the Livewire time-tracker component every 30s
+    // (or on demand) so the UI is always in sync with Monday, which is
+    // the new source of truth.
+    Route::get('/tickets/{id}/time-tracking', [TspTimeEntryController::class, 'state'])
+        ->name('tickets.time.state');
 
     // Service report (Phase 6): TSP writes the post-service report
     // and the ticket's customer-facing status flips automatically.

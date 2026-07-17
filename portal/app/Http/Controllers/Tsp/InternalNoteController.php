@@ -31,7 +31,7 @@ class InternalNoteController extends Controller
     /**
      * Render the TSP ticket detail with chat + internal-notes panels.
      */
-    public function show(string $id, TimeTracker $tracker): View
+    public function show(string $id, TimeTracker $tracker, MondayClient $monday): View
     {
         $user = auth()->user();
         $item = $this->loadMondayTicket($id);
@@ -40,9 +40,35 @@ class InternalNoteController extends Controller
         $messages = $this->loadMessageHistory($id, $user);
         $notes    = $this->loadNoteHistory($id);
 
-        // Phase 5: time tracker state for the page.
-        $active        = $tracker->activeEntryFor($user);
-        $totalSeconds  = $tracker->totalSecondsForTicket((int) $id);
+        // Phase 5 → reflection phase: time tracker is a read-only mirror
+        // of Monday's `duration_mm4hesrz` time_tracking column. The
+        // Livewire component fetches fresh state on mount and re-fetches
+        // every 30s; the props here are only the initial paint values.
+        try {
+            $tt = $monday->readTimeTracking((int) $id);
+        } catch (\Throwable $e) {
+            Log::warning('InternalNoteController: readTimeTracking failed', [
+                'monday_ticket_id' => $id,
+                'error'            => $e->getMessage(),
+            ]);
+            $tt = ['duration' => 0, 'running' => false, 'start_date' => null, 'text' => '00:00:00'];
+        }
+
+        // The Livewire time-tracker mirrors the same JSON shape the
+        // /tsp/tickets/{id}/time-tracking endpoint returns, so the
+        // initial paint and the polled updates are interchangeable.
+        $timeActive = $tt['running']
+            ? [
+                // Synthesized "active" row for the Alpine factory.
+                'status'          => 'open',
+                'elapsed_seconds' => (int) $tt['duration'],
+                'started_at'      => $tt['start_date']
+                    ? gmdate('Y-m-d\TH:i:s\Z', (int) $tt['start_date'])
+                    : null,
+                'monday_ticket_id'=> (int) $id,
+            ]
+            : null;
+        $timeTotal = (int) $tt['duration'];
 
         // Phase 6: latest service report for this ticket (if any).
         $report = ServiceReport::where('monday_ticket_id', $id)
@@ -54,17 +80,8 @@ class InternalNoteController extends Controller
             'ticket'       => $item,
             'messages'     => $messages,
             'notes'        => $notes,
-            'timeActive'   => $active && (int) $active->monday_ticket_id === (int) $id
-                ? [
-                    'id'              => (int) $active->id,
-                    'monday_ticket_id'=> (int) $active->monday_ticket_id,
-                    'status'          => $active->status,
-                    'elapsed_seconds' => (int) $active->elapsedSeconds(),
-                    'started_at'      => $active->started_at?->toIso8601String(),
-                    'note'            => $active->note,
-                ]
-                : null,
-            'timeTotal'    => $totalSeconds,
+            'timeActive'   => $timeActive,
+            'timeTotal'    => $timeTotal,
             'existingReport' => $report ? [
                 'id'                    => (int) $report->id,
                 'service_status'        => $report->service_status,

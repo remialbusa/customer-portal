@@ -1207,6 +1207,112 @@ class MondayClient
     }
 
     /**
+     * Flip a ticket's RESPONSE STATUS (color_mm4vbp35) to "RESPONDED".
+     *
+     * The customer-side ticket creation flow calls this once the new
+     * ticket is committed to Monday and at least one TSP is assigned
+     * (i.e. the People column on the Tickets board is non-empty).
+     *
+     * If the column is already "RESPONDED" the write is a no-op on
+     * Monday's side (we still issue the mutation, but the resulting
+     * value is identical). If "RESPONDED" is not yet a defined label
+     * on this column, the underlying `change_column_value` call uses
+     * `create_labels_if_missing: true` so it will be created on the
+     * fly — this is the same `writeSingleStatusColumn` helper that
+     * `applyTicketStatusFromServiceStatus()` uses for status95.
+     *
+     * Best-effort: callers (e.g. TicketController::store) should not
+     * let a failure here block the redirect — the customer has
+     * already submitted the ticket. Log the failure and continue.
+     */
+    public function markTicketResponded(int $ticketItemId): void
+    {
+        $boardId = (int) config('services.monday.tickets_board_id');
+        $colId   = (string) config('services.monday.tickets_columns.response_status');
+
+        if ($colId === '') {
+            // Column not configured. Don't blow up the ticket creation
+            // path — just log and bail. The status won't be flipped,
+            // which is the safer fallback than an exception.
+            Log::warning('markTicketResponded: response_status column not configured', [
+                'ticket_id' => $ticketItemId,
+            ]);
+            return;
+        }
+
+        $this->writeSingleStatusColumn(
+            boardId: $boardId,
+            itemId:  $ticketItemId,
+            columnId: $colId,
+            label: 'RESPONDED',
+        );
+    }
+
+    /**
+     * Read the current Response Time value from a ticket's
+     * time_tracking column.
+     *
+     * Returns a normalized array regardless of whether the column
+     * is empty, running, or stopped:
+     *   [
+     *     'duration'    => int seconds,   // total accumulated time
+     *     'running'     => bool,          // is a session in progress
+     *     'start_date'  => ?int unix_ts,  // when the current run started (null when stopped)
+     *     'changed_at'  => ?string iso,
+     *     'text'        => 'HH:MM:SS',    // Monday's own formatted display
+     *   ]
+     *
+     * Used by the TSP ticket-detail time tracker to mirror whatever
+     * Monday's native time_tracking widget shows — the portal no
+     * longer maintains a local-first timer state machine.
+     */
+    public function readTimeTracking(int $ticketItemId): array
+    {
+        $boardId = (int) config('services.monday.tickets_board_id');
+        $colId   = (string) config('services.monday.tickets_columns.time_tracking');
+
+        $empty = [
+            'duration'   => 0,
+            'running'    => false,
+            'start_date' => null,
+            'changed_at' => null,
+            'text'       => '00:00:00',
+        ];
+
+        if ($colId === '') {
+            return $empty;
+        }
+
+        $item = $this->getItem($ticketItemId);
+        if (! $item) {
+            return $empty;
+        }
+
+        $cv = $item['column_values'][$colId] ?? null;
+        if (! $cv) {
+            return $empty;
+        }
+
+        // Monday stores the value as a JSON string in $cv['value'].
+        $raw = $cv['value'] ?? null;
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+        } elseif (is_array($raw)) {
+            $decoded = $raw;
+        } else {
+            $decoded = [];
+        }
+
+        return [
+            'duration'   => (int) ($decoded['duration']  ?? 0),
+            'running'    => (string) ($decoded['running'] ?? 'false') === 'true',
+            'start_date' => isset($decoded['startDate']) ? (int) $decoded['startDate'] : null,
+            'changed_at' => $decoded['changed_at'] ?? null,
+            'text'       => (string) ($cv['text'] ?? '00:00:00'),
+        ];
+    }
+
+    /**
      * Write a single date column on a ticket/board.
      */
     public function writeDateColumn(int $boardId, int $itemId, string $columnId, string $date): void

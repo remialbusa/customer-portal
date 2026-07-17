@@ -6,6 +6,7 @@ use App\Exceptions\ExistingTimerException;
 use App\Exceptions\TicketNotFoundException;
 use App\Http\Controllers\Controller;
 use App\Models\TimeEntry;
+use App\Services\MondayClient;
 use App\Services\TimeTracker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -131,6 +132,64 @@ class TimeEntryController extends Controller
             'active'        => null,
             'total_seconds' => $this->tracker->totalSecondsForTicket($mondayId),
             'message'       => "Logged {$entry->elapsedFormatted()} to Monday.",
+        ]);
+    }
+
+    /**
+     * Return the current Monday time-tracking value for $id.
+     *
+     * The Livewire time-tracker on the TSP ticket page polls this
+     * endpoint (and the Alpine `recompute()` runs every 1s) to keep
+     * the on-page display in lockstep with Monday's own
+     * time_tracking widget. The total is the `duration` field
+     * Monday already has stored; "current session" is computed in
+     * the browser from the server-returned `start_date` so it
+     * ticks up accurately even if the page is open for hours.
+     *
+     * This is a read-only reflection — start/pause/resume/stop are
+     * now driven entirely by Monday (the native time_tracking
+     * widget on the Monday board).
+     *
+     * Response shape:
+     *   {
+     *     ok: true,
+     *     running: bool,
+     *     duration: int seconds,  // total accumulated time
+     *     start_date: ?int unix,  // when the current run started (null when stopped)
+     *     text: 'HH:MM:SS',      // Monday's own display string
+     *     monday_ticket_id: int,
+     *   }
+     */
+    public function state(Request $request, string $id, MondayClient $monday): JsonResponse
+    {
+        $mondayId = (int) $id;
+        if ($mondayId <= 0) {
+            return response()->json(['ok' => false, 'message' => 'Invalid ticket id.'], 400);
+        }
+
+        try {
+            $state = $monday->readTimeTracking($mondayId);
+        } catch (\Throwable $e) {
+            // Surface 502 so the Livewire poll can show a quiet "couldn't
+            // reach Monday" message instead of failing the whole page.
+            Log::warning('TimeEntryController::state: readTimeTracking failed', [
+                'monday_ticket_id' => $mondayId,
+                'error'            => $e->getMessage(),
+            ]);
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Could not load time tracking from Monday.',
+            ], 502);
+        }
+
+        return response()->json([
+            'ok'               => true,
+            'running'          => $state['running'],
+            'duration'         => $state['duration'],
+            'start_date'       => $state['start_date'],
+            'changed_at'       => $state['changed_at'],
+            'text'             => $state['text'],
+            'monday_ticket_id' => $mondayId,
         ]);
     }
 

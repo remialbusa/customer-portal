@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\MondayClient;
 use Livewire\Attributes\On;
 use Livewire\Volt\Component;
 
@@ -10,21 +11,33 @@ new class extends Component
     public string $currentUserRole;
 
     /**
-     * The active entry on this ticket, if any. Shape:
-     *   ['id' => int, 'status' => 'open'|'paused', 'elapsed_seconds' => int, 'started_at' => iso, 'note' => ?string]
-     * Or null. Driven by the Alpine wrapper after each server action.
+     * Mirror of Monday's time_tracking column, re-shaped to match the
+     * old "active" entry so the existing Alpine `timeTracker` factory
+     * keeps working without modification.
+     *
+     * Shape (when running):
+     *   [
+     *     'status'          => 'open',
+     *     'elapsed_seconds' => int, // Monday's `duration` so far
+     *     'started_at'      => ?iso, // from Monday's `startDate` unix
+     *     'monday_ticket_id'=> int,
+     *   ]
+     * Null when the timer is stopped on Monday's side.
      */
     public ?array $active = null;
 
     /**
-     * Total seconds ever logged against this ticket by anyone (closed entries).
+     * Total accumulated time on the ticket, in seconds. Sourced from
+     * Monday's `duration` field, which is the sum of every closed
+     * segment plus the in-progress segment (when running).
      */
     public int $totalSeconds = 0;
 
     /**
-     * One-line note for the next start. Reset to '' after each successful start.
+     * Last error message from a failed Monday read. Lets the UI show
+     * a quiet "couldn't reach Monday" hint without breaking the page.
      */
-    public string $note = '';
+    public ?string $errorMessage = null;
 
     public function mount(
         int $ticketId,
@@ -40,67 +53,37 @@ new class extends Component
         $this->totalSeconds    = $totalSeconds;
     }
 
-    public function start(): void
+    /**
+     * Read the current time_tracking value from Monday and update
+     * the public props. The Blade template wires `wire:poll.30s` to
+     * call this on a 30-second cadence; the Alpine 1Hz ticker fills
+     * in the smooth "current session" ticks between polls.
+     *
+     * Best-effort: a failed Monday read does NOT throw — we just
+     * stash the message in `errorMessage` and leave the previous
+     * values in place so the user doesn't see a flicker.
+     */
+    public function refresh(MondayClient $monday): void
     {
-        $request = request();
-        $request->merge(['note' => $this->note]);
-        $request->merge(['ticket_id' => $this->ticketId]);
+        try {
+            $tt = $monday->readTimeTracking($this->ticketId);
+        } catch (\Throwable $e) {
+            $this->errorMessage = 'Could not load time tracking from Monday.';
+            return;
+        }
 
-        $controller = app(\App\Http\Controllers\Tsp\TimeEntryController::class);
-        $payload = $controller->start($request, (string) $this->ticketId)->getData(true);
-
-        $this->active = $payload['active'] ?? null;
-        $this->totalSeconds = (int) ($payload['total_seconds'] ?? $this->totalSeconds);
-        $this->note = '';
-
-        $this->dispatch('time-tracker-state', [
-            'active' => $this->active,
-            'total'  => $this->totalSeconds,
-        ]);
-    }
-
-    public function pause(): void
-    {
-        $request = request();
-        $request->merge(['ticket_id' => $this->ticketId]);
-
-        $controller = app(\App\Http\Controllers\Tsp\TimeEntryController::class);
-        $payload = $controller->pause($request, (string) $this->ticketId)->getData(true);
-
-        $this->active = $payload['active'] ?? null;
-
-        $this->dispatch('time-tracker-state', [
-            'active' => $this->active,
-            'total'  => $this->totalSeconds,
-        ]);
-    }
-
-    public function resume(): void
-    {
-        $request = request();
-        $request->merge(['ticket_id' => $this->ticketId]);
-
-        $controller = app(\App\Http\Controllers\Tsp\TimeEntryController::class);
-        $payload = $controller->resume($request, (string) $this->ticketId)->getData(true);
-
-        $this->active = $payload['active'] ?? null;
-
-        $this->dispatch('time-tracker-state', [
-            'active' => $this->active,
-            'total'  => $this->totalSeconds,
-        ]);
-    }
-
-    public function stop(): void
-    {
-        $request = request();
-        $request->merge(['ticket_id' => $this->ticketId]);
-
-        $controller = app(\App\Http\Controllers\Tsp\TimeEntryController::class);
-        $payload = $controller->stop($request, (string) $this->ticketId)->getData(true);
-
-        $this->active = $payload['active'] ?? null;
-        $this->totalSeconds = (int) ($payload['total_seconds'] ?? $this->totalSeconds);
+        $this->errorMessage = null;
+        $this->totalSeconds = (int) $tt['duration'];
+        $this->active       = $tt['running']
+            ? [
+                'status'          => 'open',
+                'elapsed_seconds' => (int) $tt['duration'],
+                'started_at'      => $tt['start_date']
+                    ? gmdate('Y-m-d\TH:i:s\Z', (int) $tt['start_date'])
+                    : null,
+                'monday_ticket_id'=> $this->ticketId,
+            ]
+            : null;
 
         $this->dispatch('time-tracker-state', [
             'active' => $this->active,
@@ -111,6 +94,7 @@ new class extends Component
 ?>
 
 <div
+    wire:poll.30s="refresh"
     x-data="timeTracker({
         ticketId: @js((int) $ticketId),
         active:   @js($active ?: null),
@@ -131,7 +115,7 @@ new class extends Component
             <template x-if="active">
                 <span class="inline-flex items-center gap-1 text-amber-600">
                     <span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span x-text="active.status === 'open' ? 'Running' : 'Paused'"></span>
+                    <span x-text="active.status === 'open' ? 'Running on Monday' : 'Paused on Monday'"></span>
                 </span>
             </template>
             <template x-if="!active">
@@ -152,65 +136,20 @@ new class extends Component
         </div>
     </div>
 
-    <div class="mt-4 flex flex-wrap gap-2">
-        <template x-if="!active">
-            <div class="flex w-full gap-2">
-                <input
-                    type="text"
-                    wire:model="note"
-                    placeholder="What are you working on? (optional)"
-                    maxlength="500"
-                    class="flex-1 border-gray-300 rounded text-sm"
-                />
-                <button
-                    type="button"
-                    wire:click="start"
-                    wire:loading.attr="disabled"
-                    class="px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
-                >
-                    Start timer
-                </button>
-            </div>
-        </template>
+    {{-- The time tracker is now a read-only reflection of Monday's
+         `duration_mm4hesrz` column. To start / pause / stop a session,
+         use the native time_tracking widget on the Monday ticket —
+         the portal mirrors its value automatically on a 30s poll. --}}
+    <div class="mt-4 text-xs text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="inline-flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .2.08.39.22.53l3 3a.75.75 0 101.06-1.06L10.75 9.69V5z" clip-rule="evenodd" />
+            </svg>
+            Mirrored from Monday · auto-refreshes every 30s
+        </span>
 
-        <template x-if="active && active.status === 'open'">
-            <div class="flex w-full gap-2">
-                <button
-                    type="button"
-                    wire:click="pause"
-                    class="flex-1 px-4 py-2 bg-amber-500 text-white rounded text-sm hover:bg-amber-600"
-                >
-                    Pause
-                </button>
-                <button
-                    type="button"
-                    wire:click="stop"
-                    wire:confirm="Stop the timer and log this session to Monday?"
-                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                >
-                    Stop &amp; log
-                </button>
-            </div>
-        </template>
-
-        <template x-if="active && active.status === 'paused'">
-            <div class="flex w-full gap-2">
-                <button
-                    type="button"
-                    wire:click="resume"
-                    class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
-                >
-                    Resume
-                </button>
-                <button
-                    type="button"
-                    wire:click="stop"
-                    wire:confirm="Stop the timer and log this session to Monday?"
-                    class="flex-1 px-4 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                >
-                    Stop &amp; log
-                </button>
-            </div>
-        </template>
+        @if ($errorMessage)
+            <span class="text-amber-600">⚠ {{ $errorMessage }}</span>
+        @endif
     </div>
 </div>

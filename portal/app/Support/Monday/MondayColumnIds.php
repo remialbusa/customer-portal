@@ -30,8 +30,29 @@ final class MondayColumnIds
     public const BOARD_CUSTOMERS       = 5029331350; // (alt id, kept for reference)
 
     // ─── Tickets board (5028514175) — read-mostly, but we write to status95 ─
-    public const TICKETS_COL_STATUS    = 'status95'; // TODO: verify exact column id
-    public const TICKETS_COL_SUBJECT   = 'text';      // placeholder, verify
+    public const TICKETS_COL_STATUS          = 'status95'; // TODO: verify exact column id
+    public const TICKETS_COL_SUBJECT         = 'text';      // placeholder, verify
+    public const TICKETS_COL_RESPONSE_STATUS = 'color_mm4vbp35';  // "NOT YET" → "RESPONDED"
+    public const TICKETS_COL_TIME_TRACKING   = 'duration_mm4hesrz'; // Monday native time_tracking widget
+
+    /**
+     * Labels on the RESPONSE STATUS column. Discovered via
+     * `php scripts/list_status_labels.php color_mm4vbp35`.
+     * The dropdown has exactly two options:
+     *   index 0 = "NOT YET"  (default)
+     *   index 1 = "RESPONDED"
+     *
+     * We don't index into the column by raw integer — the `label`
+     * write path uses `create_labels_if_missing: true` so passing
+     * the human name is enough. This map is here for any code that
+     * needs to read the current state back.
+     *
+     * @var array<string, int>
+     */
+    public const TICKETS_RESPONSE_STATUS_LABEL_INDEX = [
+        'NOT YET'   => 0,
+        'RESPONDED' => 1,
+    ];
 
     /**
      * Status label indices on the Tickets board's status95 column.

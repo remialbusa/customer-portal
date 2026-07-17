@@ -8,6 +8,7 @@ use App\Support\PersonnelDirectory;
 use App\Support\RegionResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -148,6 +149,8 @@ class TicketController extends Controller
             $user->forceFill(['monday_id' => $customerItemId])->save();
         }
 
+        $tspPersonIds = $this->resolveTspPersonIds($data['assigned_tsp_ids'] ?? []);
+
         $result = $monday->createTicket([
             'name'            => $data['subject'],
             'description'     => $data['description'],
@@ -157,13 +160,35 @@ class TicketController extends Controller
             'brand'           => $brand,
             'model'           => $model,
             'serial'          => $serial,
-            'tsp_person_ids'  => $this->resolveTspPersonIds($data['assigned_tsp_ids'] ?? []),
+            'tsp_person_ids'  => $tspPersonIds,
         ]);
 
         if (empty($result['id'])) {
             return back()
                 ->withInput()
                 ->withErrors(['monday' => 'Monday.com did not return a ticket id. Please try again or contact support.']);
+        }
+
+        // Flip RESPONSE STATUS to "RESPONDED" once the ticket is created
+        // AND at least one TSP is actually assigned (the People column
+        // ends up non-empty). The "no preference" path leaves the column
+        // at "NOT YET" so the status accurately reflects whether a
+        // specific TSP was picked.
+        //
+        // Best-effort: a failure here must NOT block the redirect. The
+        // customer has successfully submitted the ticket — losing the
+        // status update is recoverable, but losing the redirect is a
+        // confusing 500. markTicketResponded() also internally guards
+        // against a missing config entry.
+        if (! empty($tspPersonIds)) {
+            try {
+                $monday->markTicketResponded((int) $result['id']);
+            } catch (\Throwable $e) {
+                Log::warning('TicketController: markTicketResponded failed', [
+                    'ticket_id' => $result['id'],
+                    'error'     => $e->getMessage(),
+                ]);
+            }
         }
 
         return redirect()
