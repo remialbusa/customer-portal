@@ -351,7 +351,14 @@
                                                             <div class="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
                                                                 <span class="inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium
                                                                     {{ $m['role'] === 'fse' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800' }}">
-                                                                    {{ strtoupper($m['role']) }}{{ $m['team'] && str_contains($m['team'], 'Sr') ? ' · Sr' : '' }}
+                                                                    @php
+                                                                        $roleFullName = match($m['role']) {
+                                                                            'fse' => 'Field Service Engineer',
+                                                                            'its' => 'IT Specialist',
+                                                                            default => strtoupper($m['role']),
+                                                                        };
+                                                                    @endphp
+                                                                    {{ $roleFullName }}{{ $m['team'] && str_contains($m['team'], 'Sr') ? ' · Sr' : '' }}
                                                                 </span>
                                                                 @if (! $m['assignable'])
                                                                     <span class="text-gray-400 italic">unavailable</span>
