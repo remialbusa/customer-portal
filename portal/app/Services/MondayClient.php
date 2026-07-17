@@ -622,6 +622,7 @@ class MondayClient
      *     brand?: ?string,
      *     model?: ?string,
      *     serial?: ?string,
+     *     tsp_person_ids?: array<int>,   // monday person ids to assign (the "TSP" People column)
      * } $data
      */
     public function createTicket(array $data): array
@@ -648,6 +649,24 @@ class MondayClient
             $columnValues[$cols['end_user']] = [
                 'item_ids' => [(int) $data['customer_item_id']],
             ];
+        }
+
+        // TSP People column (multiple_person_mm4fqar3). Accepts an
+        // array of monday person ids; we'll wrap it in the {personsAndTeams: [...]}
+        // envelope the column expects. Skipped silently when the list is empty
+        // so existing tests (which don't pass tsp_person_ids) keep working.
+        if (! empty($data['tsp_person_ids']) && is_array($data['tsp_person_ids'])) {
+            $tspIds = array_values(array_unique(array_filter(
+                array_map('intval', $data['tsp_person_ids'])
+            )));
+            if (! empty($tspIds) && ! empty($cols['tsp'])) {
+                $columnValues[$cols['tsp']] = [
+                    'personsAndTeams' => array_map(
+                        static fn (int $id) => ['id' => $id, 'kind' => 'person'],
+                        $tspIds
+                    ),
+                ];
+            }
         }
 
         // The item name on Monday IS the customer's subject — verbatim.

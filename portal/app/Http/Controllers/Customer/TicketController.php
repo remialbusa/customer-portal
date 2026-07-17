@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Services\MondayClient;
+use App\Support\PersonnelDirectory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -25,9 +26,10 @@ class TicketController extends Controller
             ->get();
 
         return view('customer.tickets.create', [
-            'user'        => $user,
-            'machines'    => $machines,
-            'requestTypes'=> ['Issue', 'Request'],
+            'user'         => $user,
+            'machines'     => $machines,
+            'requestTypes' => ['Issue', 'Request'],
+            'tspDirectory' => PersonnelDirectory::forCustomerAssignment(),
         ]);
     }
 
@@ -36,14 +38,19 @@ class TicketController extends Controller
      */
     public function store(Request $request, MondayClient $monday): RedirectResponse
     {
+        // The TSP picker posts user[] ids (the local `users` table ids).
+        // We accept any number of integers; downstream resolveMondayPersonIds()
+        // will reject any that don't have a monday_id populated.
         $data = $request->validate([
-            'subject'      => ['required', 'string', 'max:255'],
-            'description'  => ['required', 'string', 'max:5000'],
-            'request_type' => ['required', Rule::in(['Issue', 'Request'])],
-            'machine_id'   => ['nullable', 'exists:machines,id'],
-            'brand'        => ['nullable', 'string', 'max:120'],
-            'model'        => ['nullable', 'string', 'max:120'],
-            'serial'       => ['nullable', 'string', 'max:120'],
+            'subject'              => ['required', 'string', 'max:255'],
+            'description'          => ['required', 'string', 'max:5000'],
+            'request_type'         => ['required', Rule::in(['Issue', 'Request'])],
+            'machine_id'           => ['nullable', 'exists:machines,id'],
+            'brand'                => ['nullable', 'string', 'max:120'],
+            'model'                => ['nullable', 'string', 'max:120'],
+            'serial'               => ['nullable', 'string', 'max:120'],
+            'assigned_tsp_ids'     => ['nullable', 'array', 'max:10'],
+            'assigned_tsp_ids.*'   => ['integer', 'exists:users,id'],
         ]);
 
         $user = $request->user();
@@ -140,6 +147,7 @@ class TicketController extends Controller
             'brand'           => $brand,
             'model'           => $model,
             'serial'          => $serial,
+            'tsp_person_ids'  => $this->resolveTspPersonIds($data['assigned_tsp_ids'] ?? []),
         ]);
 
         if (empty($result['id'])) {
@@ -151,5 +159,29 @@ class TicketController extends Controller
         return redirect()
             ->route('dashboard')
             ->with('status', "Ticket #{$result['id']} submitted — our team has been notified.");
+    }
+
+    /**
+     * Translate the local user ids the customer checked on the form into
+     * the Monday person ids we need to populate the TSP People column.
+     *
+     * Returns an empty array if the customer didn't pick anyone (the
+     * "No preference" / blank form is a valid submission). Throws
+     * InvalidArgumentException if any of the selected ids doesn't have
+     * a monday_id — that condition is treated as a validation error
+     * because the picker should have disabled those checkboxes, so
+     * seeing one in the payload means a stale form was submitted.
+     */
+    private function resolveTspPersonIds(array $userIds): array
+    {
+        $userIds = array_values(array_filter(
+            array_map('intval', $userIds),
+            static fn (int $id) => $id > 0
+        ));
+        if (empty($userIds)) {
+            return [];
+        }
+
+        return PersonnelDirectory::resolveMondayPersonIds($userIds);
     }
 }

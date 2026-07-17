@@ -67,6 +67,9 @@
                                     <input type="hidden" name="brand"        value="{{ old('brand') }}">
                                     <input type="hidden" name="model"        value="{{ old('model') }}">
                                     <input type="hidden" name="serial"       value="{{ old('serial') }}">
+                                    @foreach (old('assigned_tsp_ids', []) as $tid)
+                                        <input type="hidden" name="assigned_tsp_ids[]" value="{{ $tid }}">
+                                    @endforeach
                                     <button type="submit"
                                             class="inline-flex items-center px-3 py-1.5 bg-amber-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-amber-700 transition">
                                         Submit anyway
@@ -225,6 +228,113 @@
                                            placeholder="Optional"
                                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
                                 </div>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- ───── Preferred TSPs ─────
+                     Customer picks which on-site technicians / IT
+                     specialists they'd like assigned to the ticket.
+                     Grouped by region (NCR, North Luzon, Visayas,
+                     Mindanao) so the customer can pick by branch. The
+                     list comes from PersonnelDirectory which reads
+                     the users table — the same source the
+                     PersonnelXlsxSeeder populates from the project
+                     xlsx. Members without a Monday person id (so we
+                     can't assign them via the People column) are
+                     listed but disabled. --}}
+                @php
+                    // Decode the previous selection back to the
+                    // checkbox state when re-rendering after a
+                    // validation error. old() returns null when the
+                    // form was submitted with the field empty.
+                    $oldTsp = collect(old('assigned_tsp_ids', []))
+                        ->map(fn ($v) => (int) $v)
+                        ->all();
+                    $oldTsp = array_flip($oldTsp);
+                @endphp
+                <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden"
+                     x-data="{
+                         selected: {{ (int) count($oldTsp) }},
+                         clearAll() {
+                             this.$refs.form.querySelectorAll('input[name=\'assigned_tsp_ids[]\']').forEach(el => el.checked = false);
+                             this.selected = 0;
+                         }
+                     }">
+                    <div class="px-6 py-4 border-b border-gray-100">
+                        <h3 class="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">🧑‍🔧</span>
+                            Preferred TSPs
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Optional — pick the field engineers or IT specialists you'd like assigned.
+                            Leave blank if you have no preference and we'll route it to the right team.
+                        </p>
+                    </div>
+                    <div class="px-6 py-5"
+                         x-ref="form">
+                        <div class="flex items-center justify-between mb-4">
+                            <p class="text-xs text-gray-500">
+                                <span x-text="selected"></span> selected
+                            </p>
+                            <button type="button"
+                                    @click="clearAll()"
+                                    x-show="selected > 0"
+                                    class="text-xs text-gray-500 hover:text-gray-700 underline">
+                                Clear all
+                            </button>
+                        </div>
+
+                        @if ($tspDirectory->every(fn ($g) => $g['members']->isEmpty()))
+                            <p class="text-sm text-gray-500 italic">
+                                No field engineers or IT specialists are currently configured.
+                                Your ticket will still be created — it will be auto-routed to the on-call team.
+                            </p>
+                        @else
+                            <div class="space-y-5">
+                                @foreach ($tspDirectory as $group)
+                                    @if ($group['members']->isNotEmpty())
+                                        <div>
+                                            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                {{ $group['label'] }}
+                                                <span class="text-gray-400 normal-case font-normal">
+                                                    ({{ $group['members']->count() }})
+                                                </span>
+                                            </h4>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                @foreach ($group['members'] as $m)
+                                                    <label class="flex items-start gap-2 px-3 py-2 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50 transition
+                                                        has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50
+                                                        {{ $m['assignable'] ? '' : 'opacity-50 cursor-not-allowed' }}">
+                                                        <input type="checkbox"
+                                                               name="assigned_tsp_ids[]"
+                                                               value="{{ $m['id'] }}"
+                                                               @checked(isset($oldTsp[$m['id']]))
+                                                               @disabled(! $m['assignable'])
+                                                               @change="selected += $event.target.checked ? 1 : -1"
+                                                               class="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50">
+                                                        <div class="flex-1 min-w-0">
+                                                            <div class="text-sm font-medium text-gray-900 truncate">
+                                                                {{ $m['name'] }}
+                                                            </div>
+                                                            <div class="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
+                                                                <span class="inline-flex items-center px-1.5 py-0 rounded text-[10px] font-medium
+                                                                    {{ $m['role'] === 'fse' ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800' }}">
+                                                                    {{ strtoupper($m['role']) }}{{ $m['team'] && str_contains($m['team'], 'Sr') ? ' · Sr' : '' }}
+                                                                </span>
+                                                                @if (! $m['assignable'])
+                                                                    <span class="text-gray-400 italic">unavailable</span>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
                             </div>
                         @endif
                     </div>
