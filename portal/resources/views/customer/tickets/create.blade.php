@@ -96,7 +96,7 @@
 
                 {{-- ───── Account info card ───── --}}
                 <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
-                    <div class="px-6 py-5 border-b border-gray-100 flex items-center gap-4">
+                    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-4">
                         <div class="flex-shrink-0 w-11 h-11 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-semibold">
                             {{ strtoupper(substr($user->name, 0, 1)) }}
                         </div>
@@ -127,7 +127,7 @@
                         </h3>
                         <p class="text-xs text-gray-500 mt-1">Select the machine that needs service, or describe it manually.</p>
                     </div>
-                    <div class="px-6 py-5">
+                    <div class="px-6 py-4">
                         @if ($machines->isNotEmpty())
                             {{-- Customer has registered machines — show dropdown --}}
                             <div x-data="{ machineId: '{{ old('machine_id', '') }}', showManual: {{ old('machine_id') ? 'false' : 'true' }} }">
@@ -293,7 +293,7 @@
                             </p>
                         @endif
                     </div>
-                    <div class="px-6 py-5"
+                    <div class="px-6 py-4"
                          x-ref="form">
                         <div class="flex items-center justify-between mb-4">
                             <p class="text-xs text-gray-500">
@@ -384,7 +384,7 @@
                             Request Details
                         </h3>
                     </div>
-                    <div class="px-6 py-5 space-y-5">
+                    <div class="px-6 py-4 space-y-4">
                         <div>
                             <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">
                                 Subject <span class="text-red-500">*</span>
