@@ -1,5 +1,6 @@
 import defaultTheme from 'tailwindcss/defaultTheme';
 import forms from '@tailwindcss/forms';
+import daisyui from 'daisyui';
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -7,6 +8,21 @@ export default {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
+    ],
+
+    // DaisyUI generates component classes (btn, card, alert, …) on demand
+    // when their strings appear in templates; tailwind's content scan picks
+    // them up automatically. This safelist catches any we generate at
+    // runtime via {{ $variant }} interpolation in Blade components.
+    safelist: [
+        'btn-primary', 'btn-secondary', 'btn-accent', 'btn-info',
+        'btn-success', 'btn-warning', 'btn-error', 'btn-ghost',
+        'btn-outline', 'btn-circle', 'btn-square', 'btn-block',
+        'badge-primary', 'badge-secondary', 'badge-accent', 'badge-info',
+        'badge-success', 'badge-warning', 'badge-error',
+        'alert-info', 'alert-success', 'alert-warning', 'alert-error',
+        'progress-primary', 'progress-secondary', 'progress-accent',
+        'progress-info', 'progress-success', 'progress-warning', 'progress-error',
     ],
 
     theme: {
@@ -44,5 +60,47 @@ export default {
         },
     },
 
-    plugins: [forms],
+    plugins: [forms, daisyui],
+
+    // DaisyUI custom theme: "mcbio" — derived from the logo colors
+    // (#1E3A8A navy wordmark, #2E9B3F medical green). Tone is
+    // "calm clinical + modern SaaS + friendly concierge".
+    daisyui: {
+        themes: [
+            {
+                mcbio: {
+                    'primary':         '#0A2540',  // brand-navy  — strong, anchored
+                    'primary-content': '#FFFFFF',
+                    'secondary':       '#2E9B3F',  // brand-green — medical, calm
+                    'secondary-content': '#FFFFFF',
+                    'accent':          '#3FA7E0',  // brand-blue-2 — sky highlight
+                    'accent-content':  '#FFFFFF',
+                    'neutral':         '#475569',  // brand-slate
+                    'neutral-content': '#F7FAFC',
+                    'base-100':        '#FFFFFF',  // card surface
+                    'base-200':        '#F7FAFC',  // brand-cream — page bg
+                    'base-300':        '#E2E8F0',  // brand-mist — borders
+                    'base-content':    '#0F172A',  // body text
+                    'info':            '#3FA7E0',
+                    'info-content':    '#FFFFFF',
+                    'success':         '#2E9B3F',
+                    'success-content': '#FFFFFF',
+                    'warning':         '#F59E0B',
+                    'warning-content': '#1F2937',
+                    'error':           '#DC2626',
+                    'error-content':   '#FFFFFF',
+                    '--rounded-box':   '0.75rem',  // soft, friendly corners
+                    '--rounded-btn':   '0.5rem',
+                    '--rounded-badge': '1rem',
+                    '--animation-btn': '0.2s',
+                    '--btn-text-case': 'none',     // not all-caps
+                    '--border-btn':    '1px',
+                },
+            },
+        ],
+        base: true,        // apply base resets (recommended)
+        styled: true,      // ship styled components
+        utils: true,       // ship utility helpers (e.g. glass, no-animation)
+        logs: false,       // keep build output clean
+    },
 };

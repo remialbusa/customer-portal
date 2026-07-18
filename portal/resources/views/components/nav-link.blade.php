@@ -1,9 +1,11 @@
 @props(['active'])
 
 @php
+// Brand-aligned nav link. Active state uses the medical green underline
+// (secondary) instead of the old indigo to keep the nav on-tone.
 $classes = ($active ?? false)
-            ? 'inline-flex items-center px-1 pt-1 border-b-2 border-indigo-400 text-sm font-medium leading-5 text-gray-900 focus:outline-none focus:border-indigo-700 transition duration-150 ease-in-out'
-            : 'inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium leading-5 text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none focus:text-gray-700 focus:border-gray-300 transition duration-150 ease-in-out';
+            ? 'inline-flex items-center px-3 py-2 rounded-md text-sm font-semibold text-secondary border-b-2 border-secondary transition'
+            : 'inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-base-content/70 hover:text-base-content hover:bg-base-200 border-b-2 border-transparent transition';
 @endphp
 
 <a {{ $attributes->merge(['class' => $classes]) }}>

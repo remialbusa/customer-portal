@@ -1,36 +1,43 @@
 @props([
-    'icon' => null,
-    'title',
-    'description' => null,
-    'action' => null,
-    'actionLabel' => 'Get Started',
-    'actionRoute' => null,
+    'icon'        => '📭',
+    'title'       => 'Nothing here yet',
+    'body'        => null,
+    'cta'         => null,
+    'ctaHref'     => null,
+    'ctaRoute'    => null,
+    'secondaryCta' => null,
+    'secondaryHref' => null,
 ])
 
-<div class="text-center py-12">
-    @if($icon)
-        <div class="mx-auto w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {!! $icon !!}
-            </svg>
-        </div>
+@php
+    $primaryHref = $ctaHref ?? ($ctaRoute ? route($ctaRoute) : null);
+    $secondaryHref = $secondaryHref ?? null;
+@endphp
+
+<div {{ $attributes->merge(['class' => 'card bg-base-100 border border-dashed border-base-300 rounded-2xl p-10 text-center']) }}>
+    <div class="mx-auto w-16 h-16 rounded-full bg-base-200 flex items-center justify-center text-3xl mb-4" aria-hidden="true">
+        {{ $icon }}
+    </div>
+    <h3 class="text-lg font-semibold text-base-content">{{ $title }}</h3>
+    @if ($body)
+        <p class="mt-2 text-sm text-base-content/60 max-w-md mx-auto">{{ $body }}</p>
     @endif
 
-    <h3 class="mt-2 text-sm font-semibold text-gray-900">{{ $title }}</h3>
-
-    @if($description)
-        <p class="mt-1 text-sm text-gray-500">{{ $description }}</p>
+    @if ($slot->isNotEmpty())
+        <div class="mt-4 text-sm text-base-content/80">{{ $slot }}</div>
     @endif
 
-    @if($action || $actionRoute)
-        <div class="mt-6">
-            @if($actionRoute)
-                <a href="{{ $actionRoute }}"
-                   class="inline-flex items-center px-4 py-2 bg-brand-blue border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-blue-3 focus:bg-brand-blue-3 active:bg-brand-blue-4 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 transition ease-in-out duration-150">
-                    {{ $actionLabel }}
+    @if ($primaryHref || $secondaryHref)
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+            @if ($primaryHref)
+                <a href="{{ $primaryHref }}" class="btn btn-primary">
+                    {{ $cta ?? 'Get started' }}
                 </a>
-            @else
-                {{ $action }}
+            @endif
+            @if ($secondaryHref)
+                <a href="{{ $secondaryHref }}" class="btn btn-ghost">
+                    {{ $secondaryCta }}
+                </a>
             @endif
         </div>
     @endif
