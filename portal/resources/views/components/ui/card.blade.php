@@ -23,9 +23,11 @@
 <section
     {{ $attributes->merge(['class' => "card bg-base-100 border border-base-300/70 shadow-soft rounded-2xl $padding $toneRing $interactiveClass"]) }}
 >
-    @if ($title || $icon || $subtitle || isset($actions))
+    @if ($title || $icon || $subtitle || isset($actions) || isset($iconSlot) && $iconSlot->isNotEmpty())
         <header class="flex items-start gap-3 {{ $title || $subtitle ? 'mb-4' : '' }}">
-            @if ($icon)
+            @if (isset($iconSlot) && $iconSlot->isNotEmpty())
+                <span class="shrink-0">{{ $iconSlot }}</span>
+            @elseif ($icon)
                 <span aria-hidden="true" class="text-2xl leading-none mt-0.5">{{ $icon }}</span>
             @endif
             <div class="min-w-0 flex-1">

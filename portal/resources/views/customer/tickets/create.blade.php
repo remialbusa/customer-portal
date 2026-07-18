@@ -126,10 +126,14 @@
                      dropdown of their machines. Otherwise fall back
                      to the free-text brand/model picker. --}}
                 <x-ui.card padding="p-0"
-                    icon="🧪"
                     title="Affected equipment"
                     subtitle="Select the machine that needs service, or describe it manually."
                 >
+                    <x-slot:icon>
+                        <span aria-hidden="true" class="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        </span>
+                    </x-slot:icon>
                     <div class="px-5 py-4">
                         @if ($machines->isNotEmpty())
                             {{-- Customer has registered machines — show dropdown --}}
@@ -269,11 +273,14 @@
                         : null;
                 @endphp
                 <x-ui.card padding="p-0"
-                    icon="🧑‍🔧"
                     title="Preferred technicians"
                     subtitle="Optional — pick the field engineers or IT specialists you'd like assigned. Leave blank if you have no preference and we'll route it to the right team."
-                    x-data='{ selected: @js((int) count($oldTsp)), clearAll() { const inputs = this.$refs.form.querySelectorAll("input[type=checkbox]"); inputs.forEach(el => { if (el.name && el.name.indexOf("assigned_tsp_ids") === 0) { el.checked = false; } }); this.selected = 0; } }'
                 >
+                    <x-slot:icon>
+                        <span aria-hidden="true" class="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        </span>
+                    </x-slot:icon>
                     @if ($isScoped && $regionLabel)
                         <p class="text-xs text-secondary px-5 pt-3 pb-1 flex items-start gap-1.5">
                             <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
@@ -289,7 +296,8 @@
                             </div>
                         </div>
                     @endif
-                    <div class="px-5 py-4" x-ref="form">
+                    <div class="px-5 py-4"
+                         x-data='{ selected: @js((int) count($oldTsp)), clearAll() { const inputs = this.$refs.form.querySelectorAll("input[type=checkbox]"); inputs.forEach(el => { if (el.name && el.name.indexOf("assigned_tsp_ids") === 0) { el.checked = false; } }); this.selected = 0; } }'>
                         <div class="flex items-center justify-between mb-4">
                             <p class="text-xs text-base-content/60">
                                 <span x-text="selected"></span> selected
@@ -301,78 +309,83 @@
                                 Clear all
                             </button>
                         </div>
-
-                        @if ($tspDirectory->every(fn ($g) => $g['members']->isEmpty()))
-                            @if ($isScoped)
-                                <p class="text-sm text-base-content/60 italic">
-                                    No field engineers or IT specialists are currently assigned to your area
-                                    @if ($regionLabel)({{ $regionLabel }})@endif.
-                                    Your ticket will still be created — it will be auto-routed to the nearest available team.
-                                </p>
+                        <div x-ref="form">
+                            @if ($tspDirectory->every(fn ($g) => $g['members']->isEmpty()))
+                                @if ($isScoped)
+                                    <p class="text-sm text-base-content/60 italic">
+                                        No field engineers or IT specialists are currently assigned to your area
+                                        @if ($regionLabel)({{ $regionLabel }})@endif.
+                                        Your ticket will still be created — it will be auto-routed to the nearest available team.
+                                    </p>
+                                @else
+                                    <p class="text-sm text-base-content/60 italic">
+                                        No field engineers or IT specialists are currently configured.
+                                        Your ticket will still be created — it will be auto-routed to the on-call team.
+                                    </p>
+                                @endif
                             @else
-                                <p class="text-sm text-base-content/60 italic">
-                                    No field engineers or IT specialists are currently configured.
-                                    Your ticket will still be created — it will be auto-routed to the on-call team.
-                                </p>
-                            @endif
-                        @else
-                            <div class="space-y-5">
-                                @foreach ($tspDirectory as $group)
-                                    @if ($group['members']->isNotEmpty())
-                                        <div>
-                                            <h4 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                                                {{ $group['label'] }}
-                                                <span class="text-base-content/40 normal-case font-normal">
-                                                    ({{ $group['members']->count() }})
-                                                </span>
-                                            </h4>
-                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                @foreach ($group['members'] as $m)
-                                                    <label class="flex items-start gap-2 px-3 py-2 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200/60 transition has-[:checked]:border-secondary has-[:checked]:bg-secondary/10 {{ $m['assignable'] ? '' : 'opacity-50 cursor-not-allowed' }}">
-                                                        <input type="checkbox"
-                                                               name="assigned_tsp_ids[]"
-                                                               value="{{ $m['id'] }}"
-                                                               @checked(isset($oldTsp[$m['id']]))
-                                                               @disabled(! $m['assignable'])
-                                                               @change="selected += $event.target.checked ? 1 : -1"
-                                                               class="checkbox checkbox-sm checkbox-secondary mt-0.5 disabled:opacity-50">
-                                                        <div class="flex-1 min-w-0">
-                                                            <div class="text-sm font-medium text-base-content truncate">
-                                                                {{ $m['name'] }}
+                                <div class="space-y-5">
+                                    @foreach ($tspDirectory as $group)
+                                        @if ($group['members']->isNotEmpty())
+                                            <div>
+                                                <h4 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                                                    {{ $group['label'] }}
+                                                    <span class="text-base-content/40 normal-case font-normal">
+                                                        ({{ $group['members']->count() }})
+                                                    </span>
+                                                </h4>
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    @foreach ($group['members'] as $m)
+                                                        <label class="flex items-start gap-2 px-3 py-2 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200/60 transition has-[:checked]:border-secondary has-[:checked]:bg-secondary/10 {{ $m['assignable'] ? '' : 'opacity-50 cursor-not-allowed' }}">
+                                                            <input type="checkbox"
+                                                                   name="assigned_tsp_ids[]"
+                                                                   value="{{ $m['id'] }}"
+                                                                   @checked(isset($oldTsp[$m['id']]))
+                                                                   @disabled(! $m['assignable'])
+                                                                   @change="selected += $event.target.checked ? 1 : -1"
+                                                                   class="checkbox checkbox-sm checkbox-secondary mt-0.5 disabled:opacity-50">
+                                                            <div class="flex-1 min-w-0">
+                                                                <div class="text-sm font-medium text-base-content truncate">
+                                                                    {{ $m['name'] }}
+                                                                </div>
+                                                                <div class="text-xs text-base-content/60 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                                                    <span class="badge badge-sm {{ $m['role'] === 'fse' ? 'badge-warning' : 'badge-info' }} badge-outline">
+                                                                        @php
+                                                                            $roleFullName = match($m['role']) {
+                                                                                'fse' => 'Field Service Engineer',
+                                                                                'its' => 'IT Specialist',
+                                                                                default => strtoupper($m['role']),
+                                                                            };
+                                                                        @endphp
+                                                                        {{ $roleFullName }}{{ $m['team'] && str_contains($m['team'], 'Sr') ? ' · Sr' : '' }}
+                                                                    </span>
+                                                                    @if (! $m['assignable'])
+                                                                        <span class="text-base-content/40 italic">unavailable</span>
+                                                                    @endif
+                                                                </div>
                                                             </div>
-                                                            <div class="text-xs text-base-content/60 flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                                <span class="badge badge-sm {{ $m['role'] === 'fse' ? 'badge-warning' : 'badge-info' }} badge-outline">
-                                                                    @php
-                                                                        $roleFullName = match($m['role']) {
-                                                                            'fse' => 'Field Service Engineer',
-                                                                            'its' => 'IT Specialist',
-                                                                            default => strtoupper($m['role']),
-                                                                        };
-                                                                    @endphp
-                                                                    {{ $roleFullName }}{{ $m['team'] && str_contains($m['team'], 'Sr') ? ' · Sr' : '' }}
-                                                                </span>
-                                                                @if (! $m['assignable'])
-                                                                    <span class="text-base-content/40 italic">unavailable</span>
-                                                                @endif
-                                                            </div>
-                                                        </div>
-                                                    </label>
-                                                @endforeach
+                                                        </label>
+                                                    @endforeach
+                                                </div>
                                             </div>
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
-                        @endif
+                                        @endif
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
                     </div>
                 </x-ui.card>
 
                 {{-- ───── Request details ───── --}}
                 <x-ui.card padding="p-0"
-                    icon="📋"
                     title="Request details"
                 >
+                    <x-slot:icon>
+                        <span aria-hidden="true" class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        </span>
+                    </x-slot:icon>
                     <div class="px-5 py-4 space-y-4">
                         <div>
                             <label for="subject" class="block text-sm font-medium text-base-content mb-1">
