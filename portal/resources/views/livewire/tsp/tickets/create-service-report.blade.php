@@ -57,9 +57,12 @@
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 bg-white border-bottom">
             {{-- Left: context --}}
             <div class="d-flex align-items-center gap-3">
-                <span class="badge rounded-pill text-bg-dark fs-6 px-3 py-2" title="Ticket number">
-                    #{{ $ticketNumber }}
-                </span>
+                <div>
+                    <span class="text-muted small d-block lh-1">Ticket #</span>
+                    <span class="badge rounded-pill text-bg-dark fs-6 px-3 py-2" title="Ticket number">
+                        #{{ $ticketNumber }}
+                    </span>
+                </div>
                 <div>
                     <select
                         id="tsr-service-status"

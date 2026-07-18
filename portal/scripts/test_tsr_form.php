@@ -96,7 +96,7 @@ check('TSP signature pad rendered',     str_contains($html, 'x-data="signaturePa
 check('Customer signature pad',         str_contains($html, 'x-data="signaturePad(\'customerSignatureDataUrl\''),     $pass, $fail);
 check('BIOMED signature pad',           str_contains($html, 'x-data="signaturePad(\'biomedSignatureDataUrl\''),      $pass, $fail);
 check('All three <canvas> elements',    substr_count($html, '<canvas') === 3,                                          $pass, $fail);
-check('Submit button rendered',         str_contains($html, 'Save TSR'),                                               $pass, $fail);
+check('Submit button rendered',         str_contains($html, 'Submit Report'),                                           $pass, $fail);
 
 // ── 3. Validation rejects bad input ────────────────────────────────────────
 echo "\n── 3. Validation ──\n";
