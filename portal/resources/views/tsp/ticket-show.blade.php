@@ -151,23 +151,23 @@
                             </div>
                         @endif
 
-                        {{-- Create Service Report button (opens the TSR modal
-                             below). Hidden when the ticket is in a "closed"
-                             state — the user can still view the report via
-                             the "View" link if one was filed. --}}
+                        {{-- Create Service Report link (navigates to the
+                             full TSR create page). Hidden when the ticket
+                             is in a "closed" state — the user can still
+                             view the report via the "View" link if one
+                             was filed. --}}
                         <div class="px-5 py-4 bg-base-200/60 border-t border-base-300/70 flex items-center justify-between gap-3">
                             <div class="text-xs text-base-content/60">
                                 On-site work complete? File the post-service report.
                             </div>
-                            <button
-                                type="button"
+                            <a
+                                href="{{ route('tsp.tickets.tsr.create', ['id' => $ticket['id']]) }}"
                                 class="btn btn-primary btn-sm gap-1.5"
-                                data-bs-toggle="modal"
-                                data-bs-target="#tsrModal"
+                                wire:navigate
                             >
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 Create service report
-                            </button>
+                            </a>
                         </div>
                     </x-ui.card>
                 </div>
@@ -258,54 +258,4 @@
         </div>
     </div>
 
-    {{-- ───────────────── TSR modal (Phase 6) ─────────────────
-         The full CreateServiceReport Livewire form lives inside a
-         Bootstrap 5 modal. The modal is opened by the "Create
-         Service Report" button above (data-bs-toggle="modal").
-
-         The modal is full-screen on mobile and large on desktop
-         so the form's sticky bars and signature canvases are
-         usable. Bootstrap JS is loaded lazily below. --}}
-    <div
-        class="modal fade"
-        id="tsrModal"
-        tabindex="-1"
-        aria-labelledby="tsrModalTitle"
-        aria-hidden="true"
-    >
-        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="tsrModalTitle">
-                        Service Report — Ticket #{{ $ticket['id'] }}
-                    </h5>
-                    <button
-                        type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"
-                        aria-label="Close"
-                    ></button>
-                </div>
-                <div class="modal-body p-0">
-                    {{-- The TSR form expects `ticket-number` (string) — see
-                         CreateServiceReport::mount($ticketNumber). Passing
-                         the whole ticket array would fail type coercion. --}}
-                    <livewire:tsp.tickets.create-service-report
-                        :ticket-number="$ticket['id']" />
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Bootstrap 5.3 JS bundle — needed for the modal above. The
-         layout's <head> only ships the CSS; we lazy-load the JS
-         on this page to keep the rest of the portal lightweight. --}}
-    @once
-        @push('scripts')
-            <script
-                src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-                crossorigin="anonymous"
-                defer></script>
-        @endpush
-    @endonce
 </x-app-layout>

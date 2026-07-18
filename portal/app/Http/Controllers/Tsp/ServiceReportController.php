@@ -52,6 +52,29 @@ class ServiceReportController extends Controller
     }
 
     /**
+     * Render the TSR create form as a full page (not a modal).
+     *
+     * The previous implementation embedded the Livewire TSR form in a
+     * Bootstrap 5 modal on the ticket detail page; that pattern is
+     * fragile (the Bootstrap bundle must load on a page that is
+     * otherwise Tailwind/DaisyUI only) and easy to break with a CSP
+     * or CDN failure. Rendering the form as a real page is simpler,
+     * more accessible, and shares the same view the Livewire modal
+     * was wrapping.
+     */
+    public function create(string $id): View
+    {
+        $user = auth()->user();
+        $item = $this->loadMondayTicket($id);
+        $this->authorizeTicketAccess($user, $item);
+
+        return view('tsp.service-report.create', [
+            'ticket' => $item,
+            'user'   => $user,
+        ]);
+    }
+
+    /**
      * Persist a new service report. Always returns 200 if the payload
      * is valid (even when monday sync is queued for later) so the
      * offline JS queue can safely retry on 5xx without flooding the

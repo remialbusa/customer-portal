@@ -1,18 +1,28 @@
-@extends('layouts.app')
+<x-app-layout>
+    <x-slot:header>
+        <div class="flex flex-col gap-1">
+            <span class="text-xs font-semibold uppercase tracking-wider text-base-content/60">Service Report</span>
+            <span class="text-2xl font-semibold text-base-content">Ticket #{{ $ticket['id'] ?? '—' }}</span>
+            @if (!empty($ticket['name']))
+                <span class="text-sm text-base-content/70">{{ $ticket['name'] }}</span>
+            @endif
+        </div>
+    </x-slot:header>
 
-@section('title', 'New TSR — Ticket ' . $ticket->monday_item_id)
-
-@section('content')
-    <div class="container py-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1 class="h4 mb-0">Service Report — Ticket {{ $ticket->monday_item_id }}</h1>
-            <a href="{{ route('tsp.tickets.show', ['id' => $ticket->id]) }}" class="btn btn-link">
-                ← Back to ticket
+    <div class="max-w-6xl mx-auto">
+        <div class="mb-4 flex justify-end">
+            <a
+                href="{{ route('tsp.tickets.show', ['id' => $ticket['id'] ?? 0]) }}"
+                class="btn btn-ghost btn-sm gap-1.5"
+                wire:navigate
+            >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                Back to ticket
             </a>
         </div>
 
-        <livewire:tsp.tickets.create-service-report :ticket="$ticket" />
+        <livewire:tsp.tickets.create-service-report :ticket-number="(string) ($ticket['id'] ?? '')" />
     </div>
 
     @include('partials.sw-register')
-@endsection
+</x-app-layout>

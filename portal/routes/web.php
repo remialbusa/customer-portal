@@ -78,6 +78,8 @@ Route::middleware(['auth', 'role:fse,its,manager,admin'])->prefix('tsp')->name('
     // and the ticket's customer-facing status flips automatically.
     Route::get('/service-reports/{id}', [\App\Http\Controllers\Tsp\ServiceReportController::class, 'show'])
         ->name('service-reports.show');
+    Route::get('/tickets/{id}/tsr/create', [\App\Http\Controllers\Tsp\ServiceReportController::class, 'create'])
+        ->name('tickets.tsr.create');
     Route::post('/tickets/{id}/service-report', [\App\Http\Controllers\Tsp\ServiceReportController::class, 'store'])
         ->name('tickets.service-report.store');
 
