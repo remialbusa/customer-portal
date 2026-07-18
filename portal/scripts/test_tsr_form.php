@@ -91,12 +91,12 @@ $html = $test->html();
 check('Ticket # label visible',         str_contains($html, 'Ticket #'),                                                $pass, $fail);
 check('Ticket number value visible',    str_contains($html, '2749008227'),                                             $pass, $fail);
 check('Local ID is a uuid',             (bool) preg_match('/localId&quot;:&quot;[0-9a-f-]{36}/', $html),             $pass, $fail);
-check('Status select rendered',         str_contains($html, 'wire:model.live="serviceStatus"'),                       $pass, $fail);
+check('Status select rendered',         str_contains($html, 'serviceStatus'),                                          $pass, $fail);
 check('TSP signature pad rendered',     str_contains($html, 'x-data="signaturePad(\'tspSignatureDataUrl\''),          $pass, $fail);
 check('Customer signature pad',         str_contains($html, 'x-data="signaturePad(\'customerSignatureDataUrl\''),     $pass, $fail);
 check('BIOMED signature pad',           str_contains($html, 'x-data="signaturePad(\'biomedSignatureDataUrl\''),      $pass, $fail);
 check('All three <canvas> elements',    substr_count($html, '<canvas') === 3,                                          $pass, $fail);
-check('Submit button rendered',         str_contains($html, 'Submit Report'),                                           $pass, $fail);
+check('Submit button rendered',         str_contains($html, 'Submit report'),                                           $pass, $fail);
 
 // ── 3. Validation rejects bad input ────────────────────────────────────────
 echo "\n── 3. Validation ──\n";

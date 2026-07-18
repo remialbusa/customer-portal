@@ -24,14 +24,15 @@
         :name="name"
     />
 
-    <div class="d-flex gap-2 mt-1">
-        <button type="button" class="btn btn-sm btn-outline-secondary" @click="clear()">
+    <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-base-content/60">
+        <button type="button" class="btn btn-xs btn-ghost gap-1" @click="clear()">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
             Clear
         </button>
-        <small class="text-muted align-self-center" x-show="hasInk" x-cloak>
+        <span x-show="hasInk" x-cloak>
             <span x-text="byteSize"></span> bytes captured
-        </small>
-        <small class="text-danger align-self-center" x-show="error" x-cloak x-text="error"></small>
+        </span>
+        <span class="text-error" x-show="error" x-cloak x-text="error"></span>
     </div>
 </div>
 

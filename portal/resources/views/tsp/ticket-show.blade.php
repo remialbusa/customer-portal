@@ -151,23 +151,30 @@
                             </div>
                         @endif
 
-                        {{-- Create Service Report link (navigates to the
-                             full TSR create page). Hidden when the ticket
-                             is in a "closed" state — the user can still
-                             view the report via the "View" link if one
-                             was filed. --}}
+                        {{-- Create Service Report — opens an in-place modal
+                             that hosts the TSR Livewire form. The modal
+                             pattern is preferred over a full-page route
+                             because the form is long enough to be
+                             disorienting on its own URL, and the user
+                             needs the ticket context (description,
+                             affected machine) visible right above
+                             while filling it in. The `<x-modal>`
+                             component is the Breeze Tailwind/Alpine
+                             modal — no Bootstrap JS or CDN is involved,
+                             so it can't silently fail to open. --}}
                         <div class="px-5 py-4 bg-base-200/60 border-t border-base-300/70 flex items-center justify-between gap-3">
                             <div class="text-xs text-base-content/60">
                                 On-site work complete? File the post-service report.
                             </div>
-                            <a
-                                href="{{ route('tsp.tickets.tsr.create', ['id' => $ticket['id']]) }}"
+                            <button
+                                type="button"
                                 class="btn btn-primary btn-sm gap-1.5"
-                                wire:navigate
+                                x-data
+                                x-on:click="$dispatch('open-modal', 'tsr-create-{{ $ticket['id'] }}')"
                             >
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 Create service report
-                            </a>
+                            </button>
                         </div>
                     </x-ui.card>
                 </div>
@@ -257,5 +264,21 @@
             @endisset
         </div>
     </div>
+
+    {{-- ───────────────────── TSR create modal ─────────────────────
+         In-place TSR (Technical Service Report) form. Uses the
+         Breeze Tailwind/Alpine `<x-modal>` (no Bootstrap CDN needed)
+         so opening is reliable — Alpine is always present on the
+         app layout. The modal body is a Livewire component
+         (<livewire:tsp.tickets.create-service-report>) which owns
+         form state, draft autosave, sync state, and submission.
+
+         Sized 4xl on desktop / fullscreen on mobile so the form has
+         room to breathe. --}}
+    <x-modal name="tsr-create-{{ $ticket['id'] }}" max-width="2xl" focusable>
+        <div class="px-6 py-5 max-h-[85vh] overflow-y-auto" x-data x-on:keydown.escape.window="$dispatch('close-modal', 'tsr-create-{{ $ticket['id'] }}')">
+            <livewire:tsp.tickets.create-service-report :ticket-number="(string) $ticket['id']" />
+        </div>
+    </x-modal>
 
 </x-app-layout>

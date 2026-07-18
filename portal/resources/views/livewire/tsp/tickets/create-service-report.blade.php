@@ -19,17 +19,16 @@
      ============================================================= --}}
 
 @php
-    // Status -> Bootstrap-like color class. Defined here so the
-    // view can render a colored chip without a roundtrip.
-    $statusColors = [
-        'open'        => 'secondary',
-        'in_progress' => 'primary',
-        'pending'     => 'warning',
-        'escalated'   => 'danger',
-        'completed'   => 'success',
+    // Status -> DaisyUI semantic tokens. Centralized here so the
+    // pill picker (step 2) and the sync pill agree on the mapping.
+    $statusTones = [
+        'open'        => ['tone' => 'ghost',   'dot' => 'bg-base-content/40', 'label' => 'Open'],
+        'in_progress' => ['tone' => 'primary', 'dot' => 'bg-primary',         'label' => 'In progress'],
+        'pending'     => ['tone' => 'warning', 'dot' => 'bg-warning',         'label' => 'Pending'],
+        'escalated'   => ['tone' => 'error',   'dot' => 'bg-error',           'label' => 'Escalated'],
+        'completed'   => ['tone' => 'success', 'dot' => 'bg-success',         'label' => 'Completed'],
     ];
-    $currentColor = $statusColors[$serviceStatus] ?? 'secondary';
-    $statusLabel  = \App\Enums\ServiceStatus::tryFrom($serviceStatus)?->label() ?? $serviceStatus;
+    $currentTone = $statusTones[$serviceStatus] ?? $statusTones['open'];
 
     // Friendly duration ("3h 15m" / "45m" / "0m").
     $duration = $totalMinutes > 0
@@ -40,6 +39,21 @@
     // doesn't have to type it for every report.
     $tspName  = auth()->user()?->name  ?? '';
     $tspEmail = auth()->user()?->email ?? '';
+
+    $stepLabels = [
+        1 => 'Equipment & time',
+        2 => 'Work details',
+        3 => 'Signatures',
+        4 => 'Review',
+    ];
+
+    $narratives = [
+        ['wire' => 'problemAndConcerns', 'label' => 'What was the problem?', 'icon' => 'alert',      'required' => true,  'ph' => "What issue did the customer report? What wasn't working?",     'hint' => 'Start with the symptom in the customer\'s words.'],
+        ['wire' => 'jobDone',            'label' => 'What did you do?',      'icon' => 'check',      'required' => true,  'ph' => 'Describe the work you performed to resolve the issue',     'hint' => 'Step-by-step actions taken, calibration, settings changed.'],
+        ['wire' => 'partsReplaced',      'label' => 'Parts replaced',        'icon' => 'cog',        'required' => false, 'ph' => 'List any parts used (include part numbers if available)', 'hint' => 'Optional. Add part numbers and quantities.'],
+        ['wire' => 'recommendation',     'label' => 'Recommendations',       'icon' => 'lightbulb',  'required' => false, 'ph' => 'Any follow-up work needed? Suggestions for the customer?', 'hint' => 'Preventive care, training needs, replacement timeline.'],
+        ['wire' => 'remarks',            'label' => 'Additional notes',      'icon' => 'note',       'required' => false, 'ph' => 'Anything else we should know about this service call',     'hint' => 'Optional. Free-form context for the office.'],
+    ];
 @endphp
 
 <div
@@ -47,464 +61,547 @@
     x-data="tsrForm()"
     x-init="init()"
 >
-    {{-- ───────────────────── Sticky action bar ─────────────────────
-         Two-row layout for clarity:
-           Row 1: ticket #, status, duration + sync pill, sync btn, submit
-           Row 2: online/offline indicator + last synced timestamp
-         "Local ID" and "Go offline" toggle removed (dev tools, not
-         TSP tools). --}}
-    <div class="tsr-sticky-bar sticky-top mb-4" style="z-index: 1020;">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 bg-white border-bottom">
-            {{-- Left: context --}}
-            <div class="d-flex align-items-center gap-3">
-                <div>
-                    <span class="text-muted small d-block lh-1">Ticket #</span>
-                    <span class="badge rounded-pill text-bg-dark fs-6 px-3 py-2" title="Ticket number">
-                        #{{ $ticketNumber }}
-                    </span>
-                </div>
-                <div>
-                    <select
-                        id="tsr-service-status"
-                        wire:model.live="serviceStatus"
-                        class="form-select form-select-sm border-0 fw-semibold tsr-status-select text-{{ $currentColor }}"
-                        style="min-width: 13ch;"
+    {{-- ───────────────────── Header ───────────────────── --}}
+    <div class="px-5 py-4 border-b border-base-300/70 flex flex-wrap items-center gap-3 sticky top-0 bg-base-100 z-10">
+        <div class="flex items-center gap-2 min-w-0">
+            <span class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0" aria-hidden="true">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </span>
+            <div class="min-w-0">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-base-content/60">Service report</div>
+                <div class="text-base font-semibold text-base-content truncate">Ticket #{{ $ticketNumber }}</div>
+            </div>
+        </div>
+        <div class="flex-1"></div>
+        <span
+            class="badge badge-sm gap-1 font-medium"
+            :class="{
+                'badge-error': error > 0,
+                'badge-info': syncing > 0,
+                'badge-warning': pending > 0,
+                'badge-success': synced > 0 && error === 0 && pending === 0,
+                'badge-ghost': synced === 0 && pending === 0 && syncing === 0 && error === 0,
+            }"
+            :title="syncPillTitle"
+        >
+            <span x-text="syncPillIcon" aria-hidden="true"></span>
+            <span x-text="syncPillLabel"></span>
+        </span>
+        <span class="inline-flex items-center gap-1.5 text-[11px] text-base-content/60" :title="online ? 'Connected — changes sync automatically' : 'No internet — changes are saved locally'">
+            <span class="w-1.5 h-1.5 rounded-full" :class="online ? 'bg-success' : 'bg-warning'"></span>
+            <span x-text="online ? 'Online' : 'Offline'">Online</span>
+        </span>
+    </div>
+
+    {{-- ───────────────────── Stepper ───────────────────── --}}
+    <div class="px-5 py-4 border-b border-base-300/70 bg-base-200/40">
+        <ol class="flex items-center w-full" role="list">
+            @foreach ($stepLabels as $num => $label)
+                @php $isLast = $num === count($stepLabels); @endphp
+                <li class="flex items-center flex-1 min-w-0" x-show="currentStep >= {{ $num - 1 }} && currentStep <= {{ $num + 1 }}">
+                    <button
+                        type="button"
+                        class="flex items-center gap-2 min-w-0 group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md"
+                        x-on:click="goToStep({{ $num }})"
+                        :aria-current="currentStep === {{ $num }} ? 'step' : null"
                     >
-                        @foreach(\App\Enums\ServiceStatus::cases() as $case)
-                            <option value="{{ $case->value }}">{{ $case->label() }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="d-flex align-items-center gap-1 text-muted small" title="Computed from start & end times">
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 3.5a.5.5 0 0 0-1 0V8a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 7.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
-                    <span class="fw-semibold" style="font-variant-numeric: tabular-nums;">{{ $duration }}</span>
-                </div>
-            </div>
-            {{-- Right: actions --}}
-            <div class="d-flex align-items-center gap-2">
-                <span
-                    class="badge d-inline-flex align-items-center gap-1 tsr-sync-pill"
-                    :class="syncPillClass"
-                    :title="syncPillTitle"
-                    data-pending="0"
-                    data-syncing="0"
-                    data-synced="0"
-                    data-error="0"
-                    x-ref="syncPill"
-                >
-                    <span x-text="syncPillIcon" aria-hidden="true"></span>
-                    <span x-text="syncPillLabel"></span>
-                </span>
-                <button
-                    type="button"
-                    class="btn btn-sm btn-outline-success"
-                    :disabled="syncInFlight"
-                    :class="syncInFlight ? 'disabled' : ''"
-                    @click="manualSync()"
-                    :title="manualSyncTitle"
-                >
-                    <span x-show="!syncInFlight" x-cloak>☁️ Sync</span>
-                    <span x-show="syncInFlight" x-cloak>
-                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                        Syncing…
-                    </span>
-                </button>
-                <button
-                    type="submit"
-                    form="tsr-form-el"
-                    class="btn btn-primary px-3"
-                    wire:loading.attr="disabled"
-                    wire:target="submit"
-                >
-                    <span wire:loading.remove wire:target="submit">📤 Submit Report</span>
-                    <span wire:loading wire:target="submit">Submitting…</span>
-                </button>
-            </div>
-        </div>
-        {{-- Quiet status strip: online indicator + last synced --}}
-        <div class="d-flex align-items-center justify-content-between gap-2 px-3 py-1 bg-light border-bottom small text-muted">
-            <div class="d-flex align-items-center gap-1" :title="online ? 'Connected — changes sync automatically' : 'No internet — changes are saved locally'">
-                <span
-                    class="rounded-circle d-inline-block"
-                    style="width:.5rem; height:.5rem;"
-                    :class="online ? 'bg-success' : 'bg-warning'"
-                ></span>
-                <span x-text="online ? 'Online' : 'Offline — saved locally'">Online</span>
-            </div>
-            <small x-show="lastSyncedAt" x-cloak>
-                Last synced: <span x-text="lastSyncedHuman"></span>
-            </small>
-        </div>
+                        <span
+                            class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition shrink-0"
+                            :class="{
+                                'bg-primary border-primary text-primary-content': currentStep === {{ $num }},
+                                'bg-secondary border-secondary text-secondary-content': currentStep > {{ $num }},
+                                'bg-base-100 border-base-300 text-base-content/50': currentStep < {{ $num }},
+                            }"
+                        >
+                            <template x-if="currentStep > {{ $num }}">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5">
+                                    <path fill-rule="evenodd" d="M16.704 5.296a1 1 0 010 1.408l-7.997 8a1 1 0 01-1.408 0l-3.999-4a1 1 0 011.408-1.408L8 12.59l7.296-7.294a1 1 0 011.408 0z" clip-rule="evenodd" />
+                                </svg>
+                            </template>
+                            <template x-if="currentStep <= {{ $num }}">
+                                <span>{{ $num }}</span>
+                            </template>
+                        </span>
+                        <span
+                            class="text-xs font-medium truncate hidden sm:inline"
+                            :class="currentStep === {{ $num }} ? 'text-primary' : (currentStep > {{ $num }} ? 'text-base-content' : 'text-base-content/50')"
+                        >{{ $label }}</span>
+                    </button>
+                    @if (! $isLast)
+                        <div class="flex-1 h-0.5 mx-2 rounded" :class="currentStep > {{ $num }} ? 'bg-secondary' : 'bg-base-300'"></div>
+                    @endif
+                </li>
+            @endforeach
+        </ol>
     </div>
 
     {{-- ───────────────────── Flash messages ───────────────────── --}}
     @if ($lastError)
-        <div class="alert alert-danger d-flex align-items-start gap-2" role="alert">
-            <span aria-hidden="true">⚠️</span>
-            <div>
-                <strong>Something went wrong:</strong> {{ $lastError }}
-            </div>
+        <div class="mx-5 mt-4 alert alert-error" role="alert">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M4.93 19h14.14a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.19 16a2 2 0 001.74 3z"/></svg>
+            <div class="text-sm"><strong>Something went wrong:</strong> {{ $lastError }}</div>
         </div>
     @endif
 
     @if (session('tsr.saved'))
-        <div class="alert alert-success d-flex align-items-center gap-2" role="status" x-data x-init="queueDrain()">
-            <span aria-hidden="true">✅</span>
-            <div>
-                <strong>Report saved successfully!</strong>
-                <span x-show="online" x-cloak>It's being synced to Monday.com now.</span>
-                <span x-show="!online" x-cloak>It will sync automatically when you're back online.</span>
+        <div class="mx-5 mt-4 alert alert-success" role="status" x-data x-init="queueDrain()">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <div class="text-sm">
+                <strong>Report saved!</strong>
+                <span x-show="online" x-cloak>Syncing to Monday.com now.</span>
+                <span x-show="!online" x-cloak>Will sync when you're back online.</span>
             </div>
         </div>
     @endif
 
-    {{-- ───────────────────── Draft autosave status ─────────────────────
-         Shown whenever a saved draft exists in this browser. Offers
-         a single-click "Discard" to start fresh. The `hasDraft` getter
-         re-evaluates on every Alpine tick, so once we hydrate it goes
-         away. The small "Autosaved" pill is always shown when the
-         browser supports localStorage. --}}
+    {{-- ───────────────────── Draft autosave status ───────────────────── --}}
     <div
-        class="alert alert-info d-flex align-items-center justify-content-between gap-2 mb-3"
+        class="mx-5 mt-4 alert alert-info"
         role="status"
-        x-show="hasDraft && ! _draftRestored"
+        x-show="hasDraft && !_draftRestored"
         x-cloak
     >
-        <div class="d-flex align-items-center gap-2">
-            <span aria-hidden="true">📝</span>
-            <div>
-                <strong>Unfinished report found.</strong>
-                We're restoring your previous work so you can pick up where you left off.
-            </div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <div class="flex-1 text-sm">
+            <strong>Unfinished report found.</strong>
+            <span class="text-base-content/80">We're restoring your previous work so you can pick up where you left off.</span>
         </div>
-        <button
-            type="button"
-            class="btn btn-sm btn-outline-secondary"
-            @click="discardDraft()"
-        >
-            Start fresh
-        </button>
-    </div>
-
-    <div
-        class="text-muted small d-flex align-items-center gap-1 mb-3"
-        x-show="_draftAvailable"
-        x-cloak
-        title="Your work is automatically saved to your browser as you type. You can close this tab and come back later."
-    >
-        <span aria-hidden="true">💾</span>
-        <span>Auto-saving your work</span>
+        <button type="button" class="btn btn-ghost btn-xs" @click="discardDraft()">Start fresh</button>
     </div>
 
     <form wire:submit.prevent="submit" novalidate>
+        <div class="px-5 py-5 space-y-6">
 
-        {{-- ───────────────────── Equipment Information ───────────────────── --}}
-        <fieldset class="mb-4 tsr-section">
-            <legend class="tsr-legend">
-                <span class="tsr-legend__icon" aria-hidden="true">🏷️</span>
-                Equipment Information
-            </legend>
-            <p class="text-muted small mb-3">Details about the machine you serviced</p>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">Machine / System Serial Number</label>
+            {{-- ═════════════════════════════════════════════════════
+                 STEP 1 — Equipment & Service Time
+                 ═════════════════════════════════════════════════════ --}}
+            <section x-show="currentStep === 1" x-transition.opacity>
+                <div class="mb-4">
+                    <h3 class="text-base font-semibold text-base-content">Equipment &amp; service time</h3>
+                    <p class="text-sm text-base-content/60 mt-0.5">What did you service, and for how long?</p>
+                </div>
+
+                <div class="rounded-lg border border-base-300 bg-base-100 p-4 mb-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        </span>
+                        <h4 class="text-sm font-semibold text-base-content">Equipment details</h4>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="form-control w-full">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Machine / system serial number</span></div>
+                            <input
+                                type="text"
+                                wire:model.blur="machineSystemSerialNumber"
+                                class="input input-bordered input-sm w-full"
+                                placeholder="e.g. SN-2024-00123"
+                                autocomplete="off"
+                            />
+                        </label>
+                        <label class="form-control w-full">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Software version</span></div>
+                            <input
+                                type="text"
+                                wire:model.blur="softwareVersionNo"
+                                class="input input-bordered input-sm w-full"
+                                placeholder="e.g. v3.2.1"
+                                autocomplete="off"
+                            />
+                        </label>
+                    </div>
+                </div>
+
+                <div class="rounded-lg border border-base-300 bg-base-100 p-4">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-6 h-6 rounded-md bg-accent/10 text-accent flex items-center justify-center" aria-hidden="true">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            <h4 class="text-sm font-semibold text-base-content">Service time</h4>
+                        </div>
+                        <span class="badge badge-ghost gap-1 font-mono text-xs" title="Total service duration">
+                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M8 3.5a.5.5 0 0 0-1 0V8a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 7.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
+                            {{ $duration }}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="form-control w-full">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Arrival time <span class="text-error">*</span></span></div>
+                            <input
+                                type="datetime-local"
+                                wire:model.live="serviceStartDateTime"
+                                class="input input-bordered input-sm w-full"
+                                required
+                            />
+                        </label>
+                        <label class="form-control w-full">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Departure time <span class="text-error">*</span></span></div>
+                            <input
+                                type="datetime-local"
+                                wire:model.live="serviceEndDateTime"
+                                class="input input-bordered input-sm w-full"
+                                required
+                            />
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-base-content/60 mt-2 flex items-center gap-1.5"
+                       x-data
+                       x-init="$nextTick(() => {
+                           if (! $wire.get('serviceStartDateTime')) {
+                               const d = new Date();
+                               d.setSeconds(0, 0);
+                               const pad = n => String(n).padStart(2,'0');
+                               $wire.set('serviceStartDateTime',
+                                   d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+                                   'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()));
+                           }
+                       })"
+                       x-show="! $wire.get('serviceStartDateTime')"
+                       x-cloak>
+                        <span aria-hidden="true">💡</span>
+                        Tip: We'll auto-fill the arrival time with the current time if you leave it blank.
+                    </p>
+                </div>
+            </section>
+
+            {{-- ═════════════════════════════════════════════════════
+                 STEP 2 — Status & Work Details
+                 ═════════════════════════════════════════════════════ --}}
+            <section x-show="currentStep === 2" x-transition.opacity>
+                <div class="mb-4">
+                    <h3 class="text-base font-semibold text-base-content">Work details</h3>
+                    <p class="text-sm text-base-content/60 mt-0.5">Describe the problem and what you did to fix it.</p>
+                </div>
+
+                <div class="rounded-lg border border-base-300 bg-base-100 p-4 mb-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="w-6 h-6 rounded-md bg-secondary/10 text-secondary flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        </span>
+                        <h4 class="text-sm font-semibold text-base-content">Service status</h4>
+                    </div>
+                    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Service status">
+                        @foreach ($statusTones as $value => $meta)
+                            <button
+                                type="button"
+                                role="radio"
+                                :aria-checked="(($wire.get('serviceStatus') || 'open') === '{{ $value }}').toString()"
+                                wire:click="$set('serviceStatus', '{{ $value }}')"
+                                class="btn btn-sm gap-1.5 normal-case font-medium"
+                                :class="(($wire.get('serviceStatus') || 'open') === '{{ $value }}') ? 'btn-{{ $meta['tone'] }} btn-active' : 'btn-ghost border border-base-300'"
+                            >
+                                <span class="w-1.5 h-1.5 rounded-full {{ $meta['dot'] }}" aria-hidden="true"></span>
+                                {{ $meta['label'] }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    @foreach ($narratives as $row)
+                        <div class="rounded-lg border border-base-300 bg-base-100 p-4">
+                            <div class="flex items-start justify-between gap-2 mb-2">
+                                <label class="flex items-center gap-2 text-sm font-semibold text-base-content">
+                                    @switch($row['icon'])
+                                        @case('alert')
+                                            <svg class="w-4 h-4 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M4.93 19h14.14a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.19 16a2 2 0 001.74 3z"/></svg>
+                                            @break
+                                        @case('check')
+                                            <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            @break
+                                        @case('cog')
+                                            <svg class="w-4 h-4 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                            @break
+                                        @case('lightbulb')
+                                            <svg class="w-4 h-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                                            @break
+                                        @case('note')
+                                            <svg class="w-4 h-4 text-base-content/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                            @break
+                                    @endswitch
+                                    <span>{{ $row['label'] }}</span>
+                                    @if ($row['required']) <span class="text-error">*</span> @endif
+                                </label>
+                                <span class="text-[10px] font-medium text-base-content/50 tabular-nums"
+                                      x-data="{ count: 0 }"
+                                      x-init="count = ($wire.get('{{ $row['wire'] }}') || '').length"
+                                      @input.window="count = ($wire.get('{{ $row['wire'] }}') || '').length">
+                                    <span x-text="count"></span>/5000
+                                </span>
+                            </div>
+                            <textarea
+                                wire:model.live="{{ $row['wire'] }}"
+                                class="textarea textarea-bordered w-full text-sm leading-relaxed"
+                                rows="3"
+                                maxlength="5000"
+                                placeholder="{{ $row['ph'] }}"
+                                @if($row['required']) required @endif
+                            ></textarea>
+                            <div class="h-0.5 mt-2 bg-base-200 rounded-full overflow-hidden">
+                                <div
+                                    class="h-full rounded-full transition-all bg-primary/60"
+                                    :class="(($wire.get('{{ $row['wire'] }}') || '').length) > 4500 ? 'bg-error' : 'bg-primary/60'"
+                                    :style="`width: ${Math.min(100, ((($wire.get('{{ $row['wire'] }}') || '').length) / 5000) * 100)}%`"
+                                ></div>
+                            </div>
+                            @if (! empty($row['hint']))
+                                <p class="text-[11px] text-base-content/55 mt-1.5">{{ $row['hint'] }}</p>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+
+            {{-- ═════════════════════════════════════════════════════
+                 STEP 3 — Signatures
+                 ═════════════════════════════════════════════════════ --}}
+            <section x-show="currentStep === 3" x-transition.opacity>
+                <div class="mb-4">
+                    <h3 class="text-base font-semibold text-base-content">Signatures</h3>
+                    <p class="text-sm text-base-content/60 mt-0.5">Collect signatures from everyone involved in this service call.</p>
+                </div>
+
+                <div class="space-y-3">
+                    {{-- TSP signature --}}
+                    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">YOU</span>
+                            <div>
+                                <div class="text-sm font-semibold text-base-content">Field service engineer</div>
+                                <div class="text-[11px] text-base-content/55">That's you, signing off on the work you performed.</div>
+                            </div>
+                        </div>
+                        <label class="form-control w-full mb-2">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Your name <span class="text-error">*</span></span></div>
+                            <input
+                                type="text"
+                                wire:model="tspSignatureName"
+                                class="input input-bordered input-sm w-full"
+                                placeholder="{{ $tspName }}"
+                                required
+                            />
+                        </label>
+                        <x-signature-pad name="tspSignatureDataUrl" :width="500" :height="120" />
+                    </div>
+
+                    {{-- Customer signature --}}
+                    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="w-7 h-7 rounded-md bg-secondary/10 text-secondary flex items-center justify-center text-xs font-bold">CST</span>
+                            <div>
+                                <div class="text-sm font-semibold text-base-content">Customer</div>
+                                <div class="text-[11px] text-base-content/55">The hospital contact who authorized the work.</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+                            <label class="form-control w-full">
+                                <div class="label py-1"><span class="label-text text-sm font-medium">Customer name <span class="text-error">*</span></span></div>
+                                <input
+                                    type="text"
+                                    wire:model="customerName"
+                                    class="input input-bordered input-sm w-full"
+                                    placeholder="Customer's full name"
+                                    required
+                                />
+                            </label>
+                            <label class="form-control w-full">
+                                <div class="label py-1"><span class="label-text text-sm font-medium">Customer email <span class="text-error">*</span></span></div>
+                                <input
+                                    type="email"
+                                    wire:model="customerEmail"
+                                    class="input input-bordered input-sm w-full"
+                                    placeholder="customer@example.com"
+                                    required
+                                />
+                            </label>
+                        </div>
+                        <x-signature-pad name="customerSignatureDataUrl" :width="500" :height="120" />
+                    </div>
+
+                    {{-- BIOMED signature --}}
+                    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="w-7 h-7 rounded-md bg-accent/10 text-accent flex items-center justify-center text-xs font-bold">BMD</span>
+                            <div>
+                                <div class="text-sm font-semibold text-base-content">BIOMED</div>
+                                <div class="text-[11px] text-base-content/55">The on-site biomed contact, if any.</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+                            <label class="form-control w-full">
+                                <div class="label py-1"><span class="label-text text-sm font-medium">Biomed name <span class="text-error">*</span></span></div>
+                                <input
+                                    type="text"
+                                    wire:model="biomedName"
+                                    class="input input-bordered input-sm w-full"
+                                    placeholder="Biomed contact's full name"
+                                    required
+                                />
+                            </label>
+                            <label class="form-control w-full">
+                                <div class="label py-1"><span class="label-text text-sm font-medium">Biomed email <span class="text-error">*</span></span></div>
+                                <input
+                                    type="email"
+                                    wire:model="biomedEmail"
+                                    class="input input-bordered input-sm w-full"
+                                    placeholder="biomed@example.com"
+                                    required
+                                />
+                            </label>
+                        </div>
+                        <x-signature-pad name="biomedSignatureDataUrl" :width="500" :height="120" />
+                    </div>
+                </div>
+
+                {{-- Team members (optional) --}}
+                <div class="mt-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="w-6 h-6 rounded-md bg-base-200 text-base-content/70 flex items-center justify-center" aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                        </span>
+                        <h4 class="text-sm font-semibold text-base-content">Team members <span class="text-xs font-normal text-base-content/55 ml-1">optional</span></h4>
+                    </div>
+                    <p class="text-[11px] text-base-content/55 mb-2">Did other technicians help with this service? Add their IDs below, separated by commas.</p>
                     <input
                         type="text"
-                        wire:model.blur="machineSystemSerialNumber"
-                        class="form-control"
-                        placeholder="e.g. SN-2024-00123"
+                        wire:model.live="tspWorkWithCsv"
+                        class="input input-bordered input-sm w-full"
+                        placeholder="e.g. 77787515, 77787561"
+                        inputmode="numeric"
                         autocomplete="off"
                     />
+                    <div class="flex items-center justify-between mt-2 text-[11px] text-base-content/55">
+                        <span>Leave blank if you worked alone.</span>
+                        <span
+                            x-data="{ n: 0 }"
+                            x-init="n = ($wire.get('tspWorkWithCsv') || '').split(',').map(s => s.trim()).filter(Boolean).length"
+                            :class="n > 0 ? 'text-primary font-semibold' : ''"
+                        >
+                            <span x-text="n"></span> member<span x-show="n !== 1">s</span> added
+                        </span>
+                    </div>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Software Version</label>
-                    <input
-                        type="text"
-                        wire:model.blur="softwareVersionNo"
-                        class="form-control"
-                        placeholder="e.g. v3.2.1"
-                        autocomplete="off"
-                    />
-                </div>
-            </div>
-        </fieldset>
+            </section>
 
-        {{-- ───────────────────── Service Time ───────────────────── --}}
-        <fieldset class="mb-4 tsr-section">
-            <legend class="tsr-legend">
-                <span class="tsr-legend__icon" aria-hidden="true">⏱️</span>
-                Service Time
-                <span class="badge text-bg-light ms-2">
-                    Total: {{ $duration }}
-                </span>
-            </legend>
-            <p class="text-muted small mb-3">When did you arrive and when did you finish?</p>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">
-                        Arrival Time
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="datetime-local"
-                        wire:model.live="serviceStartDateTime"
-                        class="form-control"
-                        required
-                    />
+            {{-- ═════════════════════════════════════════════════════
+                 STEP 4 — Review & Submit
+                 ═════════════════════════════════════════════════════ --}}
+            <section x-show="currentStep === 4" x-transition.opacity>
+                <div class="mb-4">
+                    <h3 class="text-base font-semibold text-base-content">Review &amp; submit</h3>
+                    <p class="text-sm text-base-content/60 mt-0.5">Take a moment to confirm everything is correct. You can jump back to any step.</p>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">
-                        Departure Time
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="datetime-local"
-                        wire:model.live="serviceEndDateTime"
-                        class="form-control"
-                        required
-                    />
-                </div>
-            </div>
-            <div class="form-text small mt-2">
-                <span x-data
-                      x-init="$nextTick(() => {
-                          if (! $wire.get('serviceStartDateTime')) {
-                              const d = new Date();
-                              d.setSeconds(0, 0);
-                              const pad = n => String(n).padStart(2,'0');
-                              $wire.set('serviceStartDateTime',
-                                  d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-                                  'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()));
-                          }
-                      })"
-                      x-show="! $wire.get('serviceStartDateTime')"
-                      x-cloak>
-                    💡 Tip: We'll auto-fill the arrival time with the current time if you leave it blank.
-                </span>
-            </div>
-        </fieldset>
 
-        {{-- ───────────────────── Work Details ───────────────────── --}}
-        <fieldset class="mb-4 tsr-section">
-            <legend class="tsr-legend">
-                <span class="tsr-legend__icon" aria-hidden="true">📝</span>
-                Work Details
-            </legend>
-            <p class="text-muted small mb-3">Describe the problem and what you did to fix it</p>
-            <div class="row g-3">
                 @php
-                    $narrative = [
-                        ['wire' => 'problemAndConcerns', 'label' => 'What was the problem?', 'icon' => '❗', 'required' => true,  'ph' => "What issue did the customer report? What wasn't working?"],
-                        ['wire' => 'jobDone',            'label' => 'What did you do?',      'icon' => '✅', 'required' => true,  'ph' => 'Describe the work you performed to resolve the issue'],
-                        ['wire' => 'partsReplaced',      'label' => 'Parts replaced',        'icon' => '🔧', 'required' => false, 'ph' => 'List any parts used (include part numbers if available)'],
-                        ['wire' => 'recommendation',     'label' => 'Recommendations',       'icon' => '💡', 'required' => false, 'ph' => 'Any follow-up work needed? Suggestions for the customer?'],
-                        ['wire' => 'remarks',            'label' => 'Additional notes',      'icon' => '🗒️', 'required' => false, 'ph' => 'Anything else we should know about this service call'],
+                    $reviewSections = [
+                        ['title' => 'Equipment & service time', 'step' => 1, 'rows' => [
+                            ['label' => 'Serial number',  'val' => $machineSystemSerialNumber ?: '—'],
+                            ['label' => 'Software',       'val' => $softwareVersionNo ?: '—'],
+                            ['label' => 'Arrival',        'val' => $serviceStartDateTime ?: '—'],
+                            ['label' => 'Departure',      'val' => $serviceEndDateTime ?: '—'],
+                            ['label' => 'Total duration', 'val' => $duration],
+                        ]],
+                        ['title' => 'Status & work details', 'step' => 2, 'rows' => [
+                            ['label' => 'Status',                 'val' => $currentTone['label']],
+                            ['label' => 'Problem',                'val' => $problemAndConcerns, 'multiline' => true],
+                            ['label' => 'Job done',               'val' => $jobDone,            'multiline' => true],
+                            ['label' => 'Parts replaced',         'val' => $partsReplaced,      'multiline' => true],
+                            ['label' => 'Recommendation',         'val' => $recommendation,     'multiline' => true],
+                            ['label' => 'Additional notes',       'val' => $remarks,            'multiline' => true],
+                        ]],
+                        ['title' => 'Signatures', 'step' => 3, 'rows' => [
+                            ['label' => 'TSP',        'val' => $tspSignatureName ? ($tspSignatureName . ' — ' . ($tspSignatureDataUrl ? 'signed' : 'unsigned')) : '—'],
+                            ['label' => 'Customer',   'val' => $customerName ? ($customerName . ' · ' . $customerEmail . ' — ' . ($customerSignatureDataUrl ? 'signed' : 'unsigned')) : '—'],
+                            ['label' => 'BIOMED',     'val' => $biomedName ? ($biomedName . ' · ' . $biomedEmail . ' — ' . ($biomedSignatureDataUrl ? 'signed' : 'unsigned')) : '—'],
+                        ]],
                     ];
                 @endphp
-                @foreach($narrative as $row)
-                    <div class="col-12">
-                        <label class="form-label">
-                            <span aria-hidden="true">{{ $row['icon'] }}</span>
-                            {{ $row['label'] }}
-                            @if($row['required']) <span class="text-danger">*</span> @endif
-                        </label>
-                        <textarea
-                            wire:model.live="{{ $row['wire'] }}"
-                            class="form-control"
-                            rows="3"
-                            maxlength="5000"
-                            placeholder="{{ $row['ph'] }}"
-                            @if($row['required']) required @endif
-                        ></textarea>
-                        <div class="form-text text-end">
-                            <span x-data="{ count: 0, max: 5000 }"
-                                  x-init="count = ($wire.get('{{ $row['wire'] }}') || '').length"
-                                  @input.window="count = ($wire.get('{{ $row['wire'] }}') || '').length"
-                                  :class="count > max ? 'text-danger fw-semibold' : ''">
-                                <span x-text="count"></span> / <span x-text="max"></span> characters
-                            </span>
+
+                <div class="space-y-3">
+                    @foreach ($reviewSections as $section)
+                        <div class="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
+                            <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-300/70 bg-base-200/40">
+                                <h4 class="text-sm font-semibold text-base-content">{{ $section['title'] }}</h4>
+                                <button type="button" class="text-xs font-medium text-primary hover:underline" @click="goToStep({{ $section['step'] }})">Edit</button>
+                            </div>
+                            <dl class="divide-y divide-base-300/60 text-sm">
+                                @foreach ($section['rows'] as $row)
+                                    <div class="px-4 py-2.5 grid grid-cols-3 gap-3 {{ empty($row['val']) || $row['val'] === '—' ? 'opacity-60' : '' }}">
+                                        <dt class="text-[11px] font-semibold uppercase tracking-wider text-base-content/55 col-span-1">{{ $row['label'] }}</dt>
+                                        <dd class="text-base-content col-span-2 {{ ! empty($row['multiline']) ? 'whitespace-pre-wrap' : 'truncate' }}">{{ $row['val'] ?: '—' }}</dd>
+                                    </div>
+                                @endforeach
+                            </dl>
                         </div>
-                    </div>
-                @endforeach
-            </div>
-        </fieldset>
+                    @endforeach
+                </div>
+            </section>
 
-        {{-- ───────────────────── Signatures ───────────────────── --}}
-        <fieldset class="mb-4 tsr-section">
-            <legend class="tsr-legend">
-                <span class="tsr-legend__icon" aria-hidden="true">✍️</span>
-                Signatures
-            </legend>
-            <p class="text-muted small mb-3">Collect signatures from everyone involved in this service call</p>
+        </div>
 
-            {{-- TSP signature --}}
-            <div class="row g-3 align-items-end mb-4 pb-4 border-bottom">
-                <div class="col-md-4">
-                    <label class="form-label">
-                        Your name
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        wire:model="tspSignatureName"
-                        class="form-control"
-                        placeholder="{{ $tspName }}"
-                        required
-                    />
-                    <div class="form-text">Your full name as the service technician</div>
-                </div>
-                <div class="col-md-8">
-                    <label class="form-label">Your signature <span class="text-danger">*</span></label>
-                    <x-signature-pad
-                        name="tspSignatureDataUrl"
-                        :width="500"
-                        :height="140"
-                    />
-                </div>
-            </div>
+        {{-- ───────────────────── Sticky footer (nav + sync) ───────────────────── --}}
+        <div class="sticky bottom-0 bg-base-100 border-t border-base-300/70 px-5 py-3 flex flex-wrap items-center gap-2 z-10">
+            <button
+                type="button"
+                class="btn btn-ghost btn-sm gap-1.5"
+                x-show="currentStep > 1"
+                x-cloak
+                @click="goToStep(currentStep - 1)"
+            >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                Back
+            </button>
 
-            {{-- Customer signature --}}
-            <div class="row g-3 align-items-end mb-4 pb-4 border-bottom">
-                <div class="col-md-4">
-                    <label class="form-label">
-                        Customer name
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        wire:model="customerName"
-                        class="form-control"
-                        placeholder="Customer's full name"
-                        required
-                    />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">
-                        Customer email
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="email"
-                        wire:model="customerEmail"
-                        class="form-control"
-                        placeholder="customer@example.com"
-                        required
-                    />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Customer signature <span class="text-danger">*</span></label>
-                    <x-signature-pad
-                        name="customerSignatureDataUrl"
-                        :width="500"
-                        :height="140"
-                    />
-                </div>
-            </div>
-
-            {{-- BIOMED signature --}}
-            <div class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label class="form-label">
-                        Biomed name
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="text"
-                        wire:model="biomedName"
-                        class="form-control"
-                        placeholder="Biomed contact's full name"
-                        required
-                    />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">
-                        Biomed email
-                        <span class="text-danger">*</span>
-                    </label>
-                    <input
-                        type="email"
-                        wire:model="biomedEmail"
-                        class="form-control"
-                        placeholder="biomed@example.com"
-                        required
-                    />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Biomed signature <span class="text-danger">*</span></label>
-                    <x-signature-pad
-                        name="biomedSignatureDataUrl"
-                        :width="500"
-                        :height="140"
-                    />
-                </div>
-            </div>
-        </fieldset>
-
-        {{-- ───────────────────── Team Members (optional) ───────────────────── --}}
-        <fieldset class="mb-4 tsr-section">
-            <legend class="tsr-legend">
-                <span class="tsr-legend__icon" aria-hidden="true">👥</span>
-                Team Members <span class="text-muted small fw-normal ms-1">(optional)</span>
-            </legend>
-            <p class="text-muted small mb-2">Did other technicians help with this service? Add their IDs below.</p>
-            <input
-                type="text"
-                wire:model.live="tspWorkWithCsv"
-                class="form-control"
-                placeholder="Enter team member IDs separated by commas (e.g. 77787515, 77787561)"
-                inputmode="numeric"
-                autocomplete="off"
-            />
-            <div class="d-flex justify-content-between mt-2">
-                <small class="text-muted">Leave blank if you worked alone.</small>
-                <small class="text-muted"
-                       x-data="{ n: 0 }"
-                       x-init="
-                           n = ($wire.get('tspWorkWithCsv') || '').split(',').map(s => s.trim()).filter(Boolean).length;
-                       "
-                       :class="n > 0 ? 'text-primary fw-semibold' : ''">
-                    <span x-text="n"></span> team member<span x-show="n !== 1">s</span> added
-                </small>
-            </div>
-        </fieldset>
-
-        {{-- ───────────────────── Sticky bottom bar ─────────────────────
-             The Sync / Submit buttons live in the top sticky bar (so
-             they're always visible) — duplicating them at the bottom
-             used to cause two issues: (1) screen real-estate wasted
-             and (2) the user could submit from the bottom button
-             without scrolling past the form to check the fields. The
-             bottom bar now only shows the read-only status bits:
-             the sync pill, the "last synced" timestamp, and a
-             scroll-back-to-top shortcut. --}}
-        <div class="d-flex justify-content-between align-items-center gap-2 mt-4 pt-3 border-top flex-wrap">
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span
-                    class="badge d-inline-flex align-items-center gap-1 tsr-sync-pill"
-                    :class="syncPillClass"
-                    :title="syncPillTitle"
-                >
-                    <span x-text="syncPillIcon" aria-hidden="true"></span>
-                    <span x-text="syncPillLabel"></span>
-                </span>
-                <small class="text-muted" x-show="lastSyncedAt" x-cloak>
+            <div class="flex-1 flex items-center gap-2 text-[11px] text-base-content/55 min-w-0">
+                <span x-show="lastSyncedAt" x-cloak>
                     Last synced: <span x-text="lastSyncedHuman"></span>
-                </small>
-                <small class="text-muted"
-                       x-show="online && !syncInFlight && (pending > 0 || error > 0)"
-                       x-cloak>
-                    <span aria-hidden="true">⟳</span> Auto-syncing when ready…
-                </small>
+                </span>
+                <span x-show="_draftAvailable" x-cloak class="inline-flex items-center gap-1">
+                    <span aria-hidden="true">💾</span>
+                    Auto-saving your work
+                </span>
             </div>
-            <div class="d-flex gap-2">
-                <button
-                    type="button"
-                    class="btn btn-outline-secondary"
-                    @click="window.scrollTo({top: 0, behavior: 'smooth'})"
-                >
-                    ↑ Back to top
-                </button>
-            </div>
+
+            <button
+                type="button"
+                class="btn btn-ghost btn-sm gap-1.5"
+                x-show="(pending > 0 || error > 0) && !syncInFlight"
+                x-cloak
+                @click="manualSync()"
+            >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                <span x-text="error > 0 ? 'Retry sync' : 'Sync to Monday'"></span>
+            </button>
+
+            <button
+                type="button"
+                class="btn btn-primary btn-sm gap-1.5"
+                x-show="currentStep < 4"
+                x-cloak
+                @click="goToStep(currentStep + 1)"
+            >
+                Next
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+
+            <button
+                type="submit"
+                class="btn btn-primary btn-sm gap-1.5"
+                x-show="currentStep === 4"
+                x-cloak
+                wire:loading.attr="disabled"
+                wire:target="submit"
+            >
+                <span wire:loading.remove wire:target="submit">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Submit report
+                </span>
+                <span wire:loading wire:target="submit" class="inline-flex items-center gap-1.5">
+                    <span class="loading loading-spinner loading-xs"></span>
+                    Submitting…
+                </span>
+            </button>
         </div>
     </form>
 
@@ -525,37 +622,18 @@
                 window.__tsrStatusUrl = @json(route('tsp.tickets.tsr.status', ['id' => $ticketNumber]));
             </script>
             <style>
-                /* Make the sticky bar sit just below the global
-                   navigation. Adjust the offset if your nav is a
-                   different height. */
-                .tsr-sticky-bar { top: 4.5rem; }
-                @media (max-width: 768px) {
-                    .tsr-sticky-bar { top: 5.5rem; }
-                }
-                .tsr-section {
-                    border: 1px solid #e5e7eb;
-                    border-radius: .5rem;
-                    padding: .9rem 1rem .6rem;
+                /* The form lives inside a Breeze x-modal so we
+                   need a vertical scroll boundary that is the modal
+                   panel (not the window). The modal panel already
+                   has max-h-[calc(100vh-4rem)] and overflow-y-auto,
+                   so the page just works as-is - we only need to
+                   add a touch of margin so the inner steps breathe. */
+                .tsr-form { margin: 0 -.25rem; }
+                .tsr-form .signature-pad__canvas {
                     background: #fff;
+                    border-color: oklch(var(--bc) / 0.2);
                 }
-                .tsr-legend {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: .35rem;
-                    font-size: .95rem;
-                    font-weight: 600;
-                    width: auto;
-                    padding: 0 .5rem;
-                    margin: 0 0 .5rem -.5rem;
-                    background: #f8fafc;
-                    border: 1px solid #e5e7eb;
-                    border-radius: .35rem;
-                }
-                .tsr-legend__icon { font-size: 1rem; }
                 [x-cloak] { display: none !important; }
-                /* Make sure the sticky bar doesn't overlap the page
-                   heading on small screens. */
-                body { scroll-padding-top: 6rem; }
             </style>
             <script>
                 // ----------------------------------------------------------------
@@ -1029,11 +1107,9 @@
 
                         // ─── Sync-state computed pill ───
                         get syncPillClass() {
-                            if (this.error   > 0)            return 'bg-danger';
-                            if (this.syncing > 0)            return 'bg-info text-dark';
-                            if (this.pending > 0)            return 'bg-warning text-dark';
-                            if (this.synced  > 0)            return 'bg-success';
-                            return 'bg-secondary';
+                            // Body uses DaisyUI badge classes via
+                            // :class binding on the header span.
+                            return '';
                         },
                         get syncPillIcon() {
                             if (this.error   > 0)            return '⚠';
