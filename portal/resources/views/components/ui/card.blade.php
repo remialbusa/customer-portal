@@ -18,13 +18,18 @@
     $interactiveClass = $interactive
         ? 'transition hover:-translate-y-0.5 hover:shadow-glow cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40'
         : '';
+    // When the card itself has no padding (p-0), the header needs its
+    // own horizontal + top padding so the icon doesn't touch the card's
+    // top-left border. When the card already has padding, let the
+    // natural card padding do the spacing.
+    $headerPad = trim($padding) === 'p-0' ? 'px-5 pt-5' : '';
 @endphp
 
 <section
     {{ $attributes->merge(['class' => "card bg-base-100 border border-base-300/70 shadow-soft rounded-2xl $padding $toneRing $interactiveClass"]) }}
 >
     @if ($title || $icon || $subtitle || isset($actions) || isset($iconSlot) && $iconSlot->isNotEmpty())
-        <header class="flex items-start gap-3 {{ $title || $subtitle ? 'mb-4' : '' }}">
+        <header class="flex items-center gap-3 {{ $title || $subtitle ? 'mb-4' : '' }} {{ $headerPad }}">
             @if (isset($iconSlot) && $iconSlot->isNotEmpty())
                 <span class="shrink-0">{{ $iconSlot }}</span>
             @elseif ($icon)
