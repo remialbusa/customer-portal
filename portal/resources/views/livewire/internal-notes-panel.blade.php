@@ -57,22 +57,22 @@ new class extends Component
         currentUserRole: @js($currentUserRole),
     })"
     x-init="init()"
-    class="bg-white shadow sm:rounded-lg flex flex-col h-[640px]"
+    class="bg-base-100 shadow sm:rounded-2xl flex flex-col h-[640px] border border-base-300/70"
 >
-    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-        <h3 class="text-base font-medium text-gray-900">
+    <div class="px-6 py-4 border-b border-base-300/70 flex items-center justify-between">
+        <h3 class="text-base font-semibold text-base-content">
             Internal notes
         </h3>
-        <span class="flex items-center gap-1.5 text-xs text-gray-500">
+        <span class="flex items-center gap-1.5 text-xs text-base-content/60">
             <span
                 x-show="pusherConnected"
                 x-cloak
-                class="inline-block h-2 w-2 rounded-full bg-green-500"
+                class="inline-block h-2 w-2 rounded-full bg-success"
             ></span>
             <span x-show="pusherConnected" x-cloak>Live</span>
         </span>
     </div>
-    <p class="px-6 pt-2 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
+    <p class="px-6 pt-2 text-xs text-warning bg-warning/5 border-b border-warning/15">
         Visible to {{ $currentUserRole === 'admin' ? 'admin' : 'TSP' }} only. Never shown to the customer.
     </p>
 
@@ -81,23 +81,22 @@ new class extends Component
         x-ref="log"
     >
         <template x-for="note in notes" :key="note.id">
-            <article class="rounded-md border border-amber-200 bg-amber-50/40 px-4 py-3">
-                <header class="flex items-center justify-between text-xs text-gray-600">
-                    <span class="font-medium text-amber-900" x-text="note.author_name"></span>
+            <article class="rounded-md border border-warning/25 bg-warning/5 px-4 py-3">
+                <header class="flex items-center justify-between text-xs text-base-content/60">
+                    <span class="font-medium text-base-content" x-text="note.author_name"></span>
                     <time
                         :datetime="note.created_at"
                         x-text="formatTime(note.created_at)"
                     ></time>
                 </header>
-                <p class="mt-1 text-sm text-gray-800 whitespace-pre-wrap break-words" x-text="note.body"></p>
-                <footer class="mt-2 text-[10px] uppercase tracking-wide text-amber-700"
-                        x-text="note.author_role"></footer>
+                <p class="mt-1 text-sm text-base-content whitespace-pre-wrap break-words" x-text="note.body"></p>
+                <footer class="mt-2 text-[10px] uppercase tracking-wide text-warning" x-text="note.author_role"></footer>
             </article>
         </template>
 
         <p
             x-show="notes.length === 0"
-            class="text-sm text-gray-500 italic"
+            class="text-sm text-base-content/60 italic"
         >
             No internal notes yet. Add the first one below — only TSP / admin can see this.
         </p>
@@ -105,7 +104,7 @@ new class extends Component
 
     <form
         wire:submit.prevent="submit"
-        class="px-6 py-4 border-t border-gray-200"
+        class="px-6 py-4 border-t border-base-300/70"
     >
         <label class="sr-only" for="internal-note-body">Add an internal note</label>
         <textarea
@@ -115,13 +114,14 @@ new class extends Component
             rows="3"
             maxlength="5000"
             placeholder="Add an internal note (visible to TSP only)..."
-            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 text-sm"
+            class="textarea textarea-bordered block w-full text-sm focus:outline-none focus:border-warning"
         ></textarea>
         <div class="mt-2 flex justify-end">
             <button
                 type="submit"
-                class="inline-flex items-center px-3 py-1.5 bg-amber-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-amber-700 active:bg-amber-800 focus:outline-none focus:border-amber-800 focus:ring focus:ring-amber-200 transition"
+                class="btn btn-warning btn-sm gap-1"
             >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Add note
             </button>
         </div>

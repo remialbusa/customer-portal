@@ -73,14 +73,19 @@ new class extends Component
         currentUserRole: @js($currentUserRole),
     })"
     x-init="init()"
-    class="bg-white shadow sm:rounded-lg flex flex-col h-[640px]"
+    class="bg-base-100 shadow sm:rounded-2xl flex flex-col h-[640px] border border-base-300/70"
 >
-    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-        <h3 class="text-base font-medium text-gray-900">
+    <div class="px-6 py-4 border-b border-base-300/70 flex items-center justify-between">
+        <h3 class="text-base font-semibold text-base-content">
             Chat with {{ $currentUserRole === 'customer' ? 'our support team' : 'the customer' }}
         </h3>
-        <span class="text-xs text-gray-400" x-show="connecting">Connecting…</span>
-        <span class="text-xs text-green-500" x-show="! connecting && connected" x-cloak>● Live</span>
+        <div class="text-xs text-base-content/50 flex items-center gap-1.5">
+            <span x-show="connecting" x-cloak>Connecting…</span>
+            <span x-show="!connecting && connected" x-cloak class="inline-flex items-center gap-1 text-success">
+                <span class="h-2 w-2 rounded-full bg-success"></span>
+                Live
+            </span>
+        </div>
     </div>
 
     <div
@@ -92,7 +97,7 @@ new class extends Component
             @forelse ($messages as $msg)
                 <div class="flex {{ $msg['mine'] ? 'justify-end' : 'justify-start' }}">
                     <div class="max-w-[80%] rounded-lg px-4 py-2 text-sm
-                                {{ $msg['mine'] ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-900' }}">
+                                {{ $msg['mine'] ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content' }}">
                         @if (! $msg['mine'])
                             <div class="text-xs font-semibold mb-1 opacity-70">
                                 {{ $msg['sender_name'] }}
@@ -102,7 +107,7 @@ new class extends Component
                             </div>
                         @endif
                         <div class="whitespace-pre-wrap break-words">{{ $msg['body'] }}</div>
-                        <div class="text-[10px] mt-1 {{ $msg['mine'] ? 'text-indigo-100' : 'text-gray-400' }}">
+                        <div class="text-[10px] mt-1 {{ $msg['mine'] ? 'text-primary-content/80' : 'text-base-content/50' }}">
                             @php
                                 $ts = $msg['created_at'] ?? null;
                                 echo $ts ? \Carbon\Carbon::parse($ts)->format('M j, g:i A') : '—';
@@ -111,26 +116,26 @@ new class extends Component
                     </div>
                 </div>
             @empty
-                <div class="text-center text-sm text-gray-400 mt-12">
-                    No messages yet — say hello 👋
+                <div class="text-center text-sm text-base-content/50 mt-12">
+                    No messages yet — say hello
                 </div>
             @endforelse
         @endisset
     </div>
 
-    <form wire:submit.prevent="send" class="border-t border-gray-200 px-4 py-3 flex gap-2">
+    <form wire:submit.prevent="send" class="border-t border-base-300/70 px-4 py-3 flex gap-2">
         <input
             type="text"
             wire:model="body"
             placeholder="Type a message…"
             maxlength="2000"
             autocomplete="off"
-            class="flex-1 rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+            class="input input-bordered input-sm flex-1 focus:outline-none focus:border-primary"
         >
         <button
             type="submit"
             wire:loading.attr="disabled"
-            class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-xs font-semibold uppercase tracking-widest rounded-md hover:bg-indigo-700 disabled:opacity-50"
+            class="btn btn-primary btn-sm"
         >
             Send
         </button>

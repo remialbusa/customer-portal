@@ -107,32 +107,32 @@ new class extends Component
         $watch('$wire.totalSeconds', (v) => { total = Number(v || 0); recompute(); });
     "
     @time-tracker-state.window="onState($event.detail)"
-    class="bg-white shadow sm:rounded-lg p-6"
+    class="bg-base-100 shadow sm:rounded-2xl p-6 border border-base-300/70"
 >
     <div class="flex items-center justify-between mb-4">
-        <h3 class="text-base font-semibold text-gray-900">Time tracker</h3>
-        <div class="text-xs text-gray-500 flex items-center gap-2">
+        <h3 class="text-base font-semibold text-base-content">Time tracker</h3>
+        <div class="text-xs text-base-content/60 flex items-center gap-2">
             <template x-if="active">
-                <span class="inline-flex items-center gap-1 text-amber-600">
-                    <span class="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span class="inline-flex items-center gap-1 text-warning">
+                    <span class="h-2 w-2 rounded-full bg-warning animate-pulse"></span>
                     <span x-text="active.status === 'open' ? 'Running on Monday' : 'Paused on Monday'"></span>
                 </span>
             </template>
             <template x-if="!active">
-                <span class="text-gray-400">No active timer</span>
+                <span class="text-base-content/50">No active timer</span>
             </template>
         </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="border border-gray-200 rounded p-4">
-            <div class="text-xs uppercase text-gray-500">Total on this ticket</div>
-            <div class="text-2xl font-bold mt-1" x-text="formatTotal(total)">—</div>
+        <div class="rounded-xl bg-base-200/50 p-4 border border-base-300/70">
+            <div class="text-xs uppercase tracking-wider text-base-content/60">Total on this ticket</div>
+            <div class="text-2xl font-bold text-base-content mt-1" x-text="formatTotal(total)">—</div>
         </div>
-        <div class="border border-gray-200 rounded p-4">
-            <div class="text-xs uppercase text-gray-500">Current session</div>
-            <div class="text-2xl font-bold mt-1" x-text="formatElapsed(elapsedSeconds)">0m 00s</div>
-            <div class="text-xs text-gray-500 mt-1" x-text="activeLabel"></div>
+        <div class="rounded-xl bg-base-200/50 p-4 border border-base-300/70">
+            <div class="text-xs uppercase tracking-wider text-base-content/60">Current session</div>
+            <div class="text-2xl font-bold text-base-content mt-1" x-text="formatElapsed(elapsedSeconds)">0m 00s</div>
+            <div class="text-xs text-base-content/60 mt-1" x-text="activeLabel"></div>
         </div>
     </div>
 
@@ -140,16 +140,19 @@ new class extends Component
          `duration_mm4hesrz` column. To start / pause / stop a session,
          use the native time_tracking widget on the Monday ticket —
          the portal mirrors its value automatically on a 30s poll. --}}
-    <div class="mt-4 text-xs text-gray-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <div class="mt-4 text-xs text-base-content/60 flex flex-wrap items-center gap-x-3 gap-y-1">
         <span class="inline-flex items-center gap-1">
-            <svg class="h-3.5 w-3.5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <svg class="h-3.5 w-3.5 text-base-content/50" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .2.08.39.22.53l3 3a.75.75 0 101.06-1.06L10.75 9.69V5z" clip-rule="evenodd" />
             </svg>
             Mirrored from Monday · auto-refreshes every 30s
         </span>
 
         @if ($errorMessage)
-            <span class="text-amber-600">⚠ {{ $errorMessage }}</span>
+            <span class="text-warning inline-flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0l-7.1 13.25A2 2 0 005 19z"/></svg>
+                {{ $errorMessage }}
+            </span>
         @endif
     </div>
 </div>

@@ -196,166 +196,170 @@ new class extends Component
 }; ?>
 
 <section class="space-y-6">
-    <header>
-        <h2 class="text-lg font-medium text-gray-900">
-            My machines
-        </h2>
-        <p class="mt-1 text-sm text-gray-600">
-            Save the equipment you want service for. When you open a new ticket you'll pick from this list — brand, model, and serial number will be filled in for you.
-        </p>
-    </header>
+    <x-ui.card
+        title="My machines"
+        subtitle="Save the equipment you want service for. When you open a new ticket you'll pick from this list — brand, model, and serial number will be filled in for you."
+        padding="p-6"
+    >
+        <x-slot:icon>
+            <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+            </span>
+        </x-slot:icon>
 
-    @if (session('machine-status'))
-        <div class="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
-            {{ session('machine-status') }}
-        </div>
-    @endif
+        @if (session('machine-status'))
+            <x-ui.toast type="success" title="Saved!">
+                {{ session('machine-status') }}
+            </x-ui.toast>
+        @endif
 
-    {{-- ─── Existing machines list ─── --}}
-    <div class="space-y-3">
-        @forelse ($this->machines as $machine)
-            <div wire:key="machine-{{ $machine->id }}"
-                 class="rounded-lg border border-gray-200 bg-white px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div class="min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="font-medium text-gray-900 truncate">
-                            {{ $machine->nickname ?: $machine->brand.' '.$machine->model }}
-                        </span>
-                        @if ($machine->is_primary)
-                            <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                                Primary
+        {{-- ─── Existing machines list ─── --}}
+        <div class="space-y-3">
+            @forelse ($this->machines as $machine)
+                <div wire:key="machine-{{ $machine->id }}"
+                     class="rounded-xl border border-base-300/70 bg-base-100 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-medium text-base-content truncate">
+                                {{ $machine->nickname ?: $machine->brand.' '.$machine->model }}
                             </span>
+                            @if ($machine->is_primary)
+                                <span class="badge badge-info badge-sm font-medium">
+                                    Primary
+                                </span>
+                            @endif
+                        </div>
+                        <div class="mt-1 text-sm text-base-content/70">
+                            {{ $machine->brand }} · {{ $machine->model }}
+                            @if ($machine->serial_number)
+                                <span class="text-base-content/30 mx-1">·</span> S/N {{ $machine->serial_number }}
+                            @endif
+                            @if ($machine->installation_date)
+                                <span class="text-base-content/30 mx-1">·</span> installed {{ $machine->installation_date->format('M Y') }}
+                            @endif
+                        </div>
+                        @if ($machine->notes)
+                            <div class="mt-1 text-xs text-base-content/60 line-clamp-2">{{ $machine->notes }}</div>
                         @endif
                     </div>
-                    <div class="mt-1 text-sm text-gray-600">
-                        {{ $machine->brand }} · {{ $machine->model }}
-                        @if ($machine->serial_number)
-                            <span class="text-gray-400">·</span> S/N {{ $machine->serial_number }}
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        @if (! $machine->is_primary)
+                            <button type="button" wire:click="makePrimary({{ $machine->id }})"
+                                    class="text-xs font-medium text-base-content/70 hover:text-base-content underline">
+                                Make primary
+                            </button>
                         @endif
-                        @if ($machine->installation_date)
-                            <span class="text-gray-400">·</span> installed {{ $machine->installation_date->format('M Y') }}
-                        @endif
-                    </div>
-                    @if ($machine->notes)
-                        <div class="mt-1 text-xs text-gray-500 line-clamp-2">{{ $machine->notes }}</div>
-                    @endif
-                </div>
-                <div class="flex items-center gap-2 flex-shrink-0">
-                    @if (! $machine->is_primary)
-                        <button type="button" wire:click="makePrimary({{ $machine->id }})"
-                                class="text-xs font-medium text-gray-700 hover:text-gray-900 underline">
-                            Make primary
+                        <button type="button" wire:click="startEdit({{ $machine->id }})"
+                                class="btn btn-ghost btn-sm">
+                            Edit
                         </button>
-                    @endif
-                    <button type="button" wire:click="startEdit({{ $machine->id }})"
-                            class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                        Edit
+                        <button type="button" wire:click="confirmDelete({{ $machine->id }})"
+                                class="btn btn-outline btn-error btn-sm">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            @empty
+                <div class="rounded-xl border border-dashed border-base-300 bg-base-200/40 px-4 py-6 text-center">
+                    <p class="text-sm text-base-content/70">No machines saved yet.</p>
+                    <p class="mt-1 text-xs text-base-content/50">Add your first machine below — you can save as many as you need.</p>
+                </div>
+            @endforelse
+        </div>
+
+        {{-- ─── Delete confirmation ─── --}}
+        @if ($confirmingDeleteId !== null)
+            <div wire:key="delete-confirm" class="rounded-xl border border-error/30 bg-error/5 px-4 py-3 flex items-center justify-between gap-3">
+                <span class="text-sm text-base-content/80">Remove this machine from your list?</span>
+                <div class="flex items-center gap-2">
+                    <button type="button" wire:click="cancelDelete"
+                            class="btn btn-ghost btn-sm">
+                        Cancel
                     </button>
-                    <button type="button" wire:click="confirmDelete({{ $machine->id }})"
-                            class="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50">
-                        Remove
+                    <button type="button" wire:click="deleteMachine"
+                            class="btn btn-error btn-sm">
+                        Yes, remove
                     </button>
                 </div>
             </div>
-        @empty
-            <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center">
-                <p class="text-sm text-gray-600">No machines saved yet.</p>
-                <p class="mt-1 text-xs text-gray-500">Add your first machine below — you can save as many as you need.</p>
-            </div>
-        @endforelse
-    </div>
+        @endif
 
-    {{-- ─── Delete confirmation ─── --}}
-    @if ($confirmingDeleteId !== null)
-        <div wire:key="delete-confirm" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-3">
-            <span class="text-sm text-red-800">Remove this machine from your list?</span>
-            <div class="flex items-center gap-2">
-                <button type="button" wire:click="cancelDelete"
-                        class="text-xs font-medium text-gray-700 hover:text-gray-900">
-                    Cancel
-                </button>
-                <button type="button" wire:click="deleteMachine"
-                        class="inline-flex items-center rounded-md border border-transparent bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700">
-                    Yes, remove
-                </button>
+        {{-- ─── Add / Edit form ─── --}}
+        <div class="rounded-xl border border-base-300/70 bg-base-200/50 px-4 py-4 mt-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-base-content">
+                    {{ $editingId ? 'Edit machine' : 'Add a machine' }}
+                </h3>
+                @if ($editingId)
+                    <button type="button" wire:click="cancelEdit" class="btn btn-ghost btn-xs">
+                        Cancel
+                    </button>
+                @endif
             </div>
+
+            <form wire:submit="save" class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="sm:col-span-2">
+                    <x-input-label for="machine-nickname" value="Nickname (optional)" />
+                    <x-text-input wire:model="nickname" id="machine-nickname" type="text" maxlength="80"
+                                   class="mt-1 block w-full"
+                                   placeholder="e.g. ICU Monitor #2" />
+                    <p class="mt-1 text-xs text-base-content/60">A short label so you can tell your machines apart.</p>
+                    <x-input-error class="mt-2" :messages="$errors->get('nickname')" />
+                </div>
+
+                <div>
+                    <x-input-label for="machine-brand" value="Brand *" />
+                    <x-text-input wire:model="brand" id="machine-brand" type="text" maxlength="120"
+                                   class="mt-1 block w-full" required
+                                   placeholder="e.g. Mindray" />
+                    <x-input-error class="mt-2" :messages="$errors->get('brand')" />
+                </div>
+
+                <div>
+                    <x-input-label for="machine-model" value="Model *" />
+                    <x-text-input wire:model="model" id="machine-model" type="text" maxlength="120"
+                                   class="mt-1 block w-full" required
+                                   placeholder="e.g. BC-6800" />
+                    <x-input-error class="mt-2" :messages="$errors->get('model')" />
+                </div>
+
+                <div>
+                    <x-input-label for="machine-serial" value="Serial number" />
+                    <x-text-input wire:model="serial_number" id="machine-serial" type="text" maxlength="120"
+                                   class="mt-1 block w-full"
+                                   placeholder="(optional)" />
+                    <x-input-error class="mt-2" :messages="$errors->get('serial_number')" />
+                </div>
+
+                <div>
+                    <x-input-label for="machine-installation" value="Installation date" />
+                    <x-text-input wire:model="installation_date" id="machine-installation" type="date"
+                                   class="mt-1 block w-full" />
+                    <x-input-error class="mt-2" :messages="$errors->get('installation_date')" />
+                </div>
+
+                <div class="sm:col-span-2">
+                    <x-input-label for="machine-notes" value="Notes" />
+                    <textarea wire:model="notes" id="machine-notes" rows="2" maxlength="1000"
+                              class="textarea textarea-bordered mt-1 block w-full text-sm focus:outline-none focus:border-primary"
+                              placeholder="Location, accessories, anything the technician should know."></textarea>
+                    <x-input-error class="mt-2" :messages="$errors->get('notes')" />
+                </div>
+
+                <div class="sm:col-span-2 flex items-center justify-between">
+                    <label class="inline-flex items-center gap-2 text-sm text-base-content/80 cursor-pointer">
+                        <input type="checkbox" wire:model="is_primary"
+                               class="checkbox checkbox-secondary checkbox-sm">
+                        Mark as primary machine
+                    </label>
+
+                    <button type="submit"
+                            class="btn btn-primary btn-sm gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        {{ $editingId ? 'Save changes' : 'Add machine' }}
+                    </button>
+                </div>
+            </form>
         </div>
-    @endif
-
-    {{-- ─── Add / Edit form ─── --}}
-    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4">
-        <div class="flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-900">
-                {{ $editingId ? 'Edit machine' : 'Add a machine' }}
-            </h3>
-            @if ($editingId)
-                <button type="button" wire:click="cancelEdit" class="text-xs text-gray-500 hover:text-gray-700">
-                    Cancel
-                </button>
-            @endif
-        </div>
-
-        <form wire:submit="save" class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="sm:col-span-2">
-                <x-input-label for="machine-nickname" value="Nickname (optional)" />
-                <x-text-input wire:model="nickname" id="machine-nickname" type="text" maxlength="80"
-                               class="mt-1 block w-full"
-                               placeholder="e.g. ICU Monitor #2" />
-                <p class="mt-1 text-xs text-gray-500">A short label so you can tell your machines apart.</p>
-                <x-input-error class="mt-2" :messages="$errors->get('nickname')" />
-            </div>
-
-            <div>
-                <x-input-label for="machine-brand" value="Brand *" />
-                <x-text-input wire:model="brand" id="machine-brand" type="text" maxlength="120"
-                               class="mt-1 block w-full" required
-                               placeholder="e.g. Mindray" />
-                <x-input-error class="mt-2" :messages="$errors->get('brand')" />
-            </div>
-
-            <div>
-                <x-input-label for="machine-model" value="Model *" />
-                <x-text-input wire:model="model" id="machine-model" type="text" maxlength="120"
-                               class="mt-1 block w-full" required
-                               placeholder="e.g. BC-6800" />
-                <x-input-error class="mt-2" :messages="$errors->get('model')" />
-            </div>
-
-            <div>
-                <x-input-label for="machine-serial" value="Serial number" />
-                <x-text-input wire:model="serial_number" id="machine-serial" type="text" maxlength="120"
-                               class="mt-1 block w-full"
-                               placeholder="(optional)" />
-                <x-input-error class="mt-2" :messages="$errors->get('serial_number')" />
-            </div>
-
-            <div>
-                <x-input-label for="machine-installation" value="Installation date" />
-                <x-text-input wire:model="installation_date" id="machine-installation" type="date"
-                               class="mt-1 block w-full" />
-                <x-input-error class="mt-2" :messages="$errors->get('installation_date')" />
-            </div>
-
-            <div class="sm:col-span-2">
-                <x-input-label for="machine-notes" value="Notes" />
-                <textarea wire:model="notes" id="machine-notes" rows="2" maxlength="1000"
-                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-blue focus:ring-brand-blue text-sm"
-                          placeholder="Location, accessories, anything the technician should know."></textarea>
-                <x-input-error class="mt-2" :messages="$errors->get('notes')" />
-            </div>
-
-            <div class="sm:col-span-2 flex items-center justify-between">
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input type="checkbox" wire:model="is_primary"
-                           class="rounded border-gray-300 text-brand-blue focus:ring-brand-blue">
-                    Mark as primary machine
-                </label>
-
-                <button type="submit"
-                        class="inline-flex items-center rounded-md bg-brand-blue px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-blue-3 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2">
-                    {{ $editingId ? 'Save changes' : 'Add machine' }}
-                </button>
-            </div>
-        </form>
-    </div>
+    </x-ui.card>
 </section>

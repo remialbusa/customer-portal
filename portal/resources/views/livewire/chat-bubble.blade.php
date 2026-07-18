@@ -135,23 +135,23 @@ new class extends Component
         x-transition:leave="transition ease-in duration-150"
         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
         x-transition:leave-end="opacity-0 translate-y-2 scale-95"
-        class="w-[360px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100vh-6rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
+        class="w-[360px] max-w-[calc(100vw-2.5rem)] h-[520px] max-h-[calc(100vh-6rem)] bg-base-100 rounded-2xl shadow-2xl border border-base-300/70 flex flex-col overflow-hidden"
     >
         {{-- Panel header --}}
-        <div class="px-4 py-3 bg-indigo-600 text-white flex items-center justify-between flex-shrink-0">
+        <div class="px-4 py-3 bg-primary text-primary-content flex items-center justify-between flex-shrink-0">
             <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-base">
-                    💬
+                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                 </div>
                 <div>
                     <div class="text-sm font-semibold leading-tight">Chat with our support team</div>
-                    <div class="text-[11px] text-indigo-100">Ticket #{{ $ticketId }}</div>
+                    <div class="text-[11px] text-primary-content/80">Ticket #{{ $ticketId }}</div>
                 </div>
             </div>
             <button
                 type="button"
                 @click="toggle()"
-                class="text-white/80 hover:text-white p-1 rounded transition"
+                class="text-primary-content/80 hover:text-primary-content p-1 rounded transition"
                 aria-label="Close chat"
             >
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,9 +174,9 @@ new class extends Component
             x-init="init()"
             class="flex-1 flex flex-col min-h-0"
         >
-            <div class="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-                <span class="text-[10px] text-gray-400" x-show="connecting">Connecting…</span>
-                <span class="text-[10px] text-green-500" x-show="!connecting && connected" x-cloak>● Live</span>
+            <div class="px-3 py-1.5 border-b border-base-300/70 flex items-center justify-between flex-shrink-0">
+                <span class="text-[10px] text-base-content/50" x-show="connecting">Connecting…</span>
+                <span class="text-[10px] text-success" x-show="!connecting && connected" x-cloak>● Live</span>
             </div>
             <div
                 id="chat-log-{{ $ticketId }}"
@@ -185,7 +185,7 @@ new class extends Component
                 @forelse ($messages as $msg)
                     <div class="flex {{ $msg['mine'] ? 'justify-end' : 'justify-start' }}">
                         <div class="max-w-[80%] rounded-lg px-3 py-1.5 text-sm
-                                    {{ $msg['mine'] ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-900' }}">
+                                    {{ $msg['mine'] ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content' }}">
                             @if (! $msg['mine'])
                                 <div class="text-[10px] font-semibold mb-0.5 opacity-70">
                                     {{ $msg['sender_name'] }}
@@ -195,7 +195,7 @@ new class extends Component
                                 </div>
                             @endif
                             <div class="whitespace-pre-wrap break-words chat-msg-body">{{ $msg['body'] }}</div>
-                            <div class="text-[9px] mt-0.5 chat-msg-ts {{ $msg['mine'] ? 'text-indigo-100' : 'text-gray-400' }}">
+                            <div class="text-[9px] mt-0.5 chat-msg-ts {{ $msg['mine'] ? 'text-primary-content/80' : 'text-base-content/50' }}">
                                 @php
                                     $ts = $msg['created_at'] ?? null;
                                     echo $ts ? \Carbon\Carbon::parse($ts)->format('M j, g:i A') : '—';
@@ -204,24 +204,24 @@ new class extends Component
                         </div>
                     </div>
                 @empty
-                    <div class="text-center text-xs text-gray-400 mt-8 chat-empty">
-                        No messages yet — say hello 👋
+                    <div class="text-center text-xs text-base-content/50 mt-8 chat-empty">
+                        No messages yet — say hello
                     </div>
                 @endforelse
             </div>
-            <form wire:submit.prevent="send" class="border-t border-gray-200 px-2 py-2 flex gap-1.5 flex-shrink-0">
+            <form wire:submit.prevent="send" class="border-t border-base-300/70 px-2 py-2 flex gap-1.5 flex-shrink-0">
                 <input
                     type="text"
                     wire:model="body"
                     placeholder="Type a message…"
                     maxlength="2000"
                     autocomplete="off"
-                    class="flex-1 rounded-md border-gray-300 text-xs focus:border-indigo-500 focus:ring-indigo-500"
+                    class="input input-bordered input-sm flex-1 focus:outline-none focus:border-primary"
                 >
                 <button
                     type="submit"
                     wire:loading.attr="disabled"
-                    class="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-[11px] font-semibold uppercase tracking-widest rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    class="btn btn-primary btn-sm"
                 >
                     Send
                 </button>
@@ -234,7 +234,7 @@ new class extends Component
         type="button"
         @click="toggle()"
         :class="pulse ? 'animate-bounce' : ''"
-        class="relative w-14 h-14 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition flex items-center justify-center"
+        class="relative w-14 h-14 rounded-full bg-primary text-primary-content shadow-lg hover:opacity-90 focus:outline-none focus:ring-4 focus:ring-primary/30 transition flex items-center justify-center"
         aria-label="Open chat with support"
     >
         {{-- Chat icon when closed --}}
@@ -251,7 +251,7 @@ new class extends Component
         <span
             x-show="unread > 0"
             x-cloak
-            class="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white"
+            class="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-error text-error-content text-[10px] font-bold flex items-center justify-center border-2 border-base-100"
             x-text="unread > 9 ? '9+' : unread"
         ></span>
     </button>

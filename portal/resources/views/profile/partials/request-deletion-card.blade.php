@@ -5,96 +5,99 @@
 @endphp
 
 <section class="space-y-6">
-    <header>
-        <h2 class="text-lg font-medium text-gray-900">
-            {{ __('Delete Account') }}
-        </h2>
+    <x-ui.card
+        title="Delete account"
+        subtitle="Account deletion is handled by our superadmin team to keep your ticket history, chat logs, and audit trail safe. Submit a request below and they will review it and confirm by email."
+        padding="p-6"
+    >
+        <x-slot:icon>
+            <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-error/10 text-error flex items-center justify-center shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+            </span>
+        </x-slot:icon>
 
-        <p class="mt-1 text-sm text-gray-600">
-            {{ __('Account deletion is handled by our superadmin team to keep your ticket history, chat logs, and audit trail safe. Submit a request below and they will review it and confirm by email.') }}
-        </p>
-    </header>
+        @if (session('status'))
+            <div role="alert" class="alert alert-success shadow-sm flex-col items-start gap-1 p-3 text-sm">
+                {{ session('status') }}
+            </div>
+        @endif
 
-    @if (session('status'))
-        <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md px-4 py-3 text-sm">
-            {{ session('status') }}
-        </div>
-    @endif
+        @if ($errors->any())
+            <div role="alert" class="alert alert-error shadow-sm flex-col items-start gap-1 p-3 text-sm">
+                <ul class="list-disc list-inside space-y-0.5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
-    @if ($errors->any())
-        <div class="bg-red-50 border border-red-200 text-red-800 rounded-md px-4 py-3 text-sm">
-            <ul class="list-disc list-inside space-y-1">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    @if ($pendingRequest)
-        {{-- A request is already in flight. Show its status and
-             give the user a way to cancel if they filed by mistake. --}}
-        <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-md p-4 text-sm space-y-3">
-            <p>
-                <span class="font-semibold">Request pending.</span>
-                You submitted an account-deletion request on
-                {{ $pendingRequest->created_at->format('M j, Y g:i A') }}.
-                A superadmin will review it shortly.
-            </p>
-            @if ($pendingRequest->reason)
-                <p class="text-xs">
-                    <span class="font-semibold">Reason you provided:</span>
-                    <span class="italic">{{ $pendingRequest->reason }}</span>
+        @if ($pendingRequest)
+            {{-- A request is already in flight. Show its status and
+                 give the user a way to cancel if they filed by mistake. --}}
+            <div role="alert" class="alert alert-warning shadow-sm flex-col items-start gap-2 p-4 text-sm">
+                <p>
+                    <span class="font-semibold">Request pending.</span>
+                    You submitted an account-deletion request on
+                    {{ $pendingRequest->created_at->format('M j, Y g:i A') }}.
+                    A superadmin will review it shortly.
                 </p>
-            @endif
+                @if ($pendingRequest->reason)
+                    <p class="text-xs">
+                        <span class="font-semibold">Reason you provided:</span>
+                        <span class="italic">{{ $pendingRequest->reason }}</span>
+                    </p>
+                @endif
 
+                <form
+                    method="POST"
+                    action="{{ route('profile.deletion-request.cancel') }}"
+                    onsubmit="return confirm('Cancel your account-deletion request?');"
+                >
+                    @csrf
+                    <button
+                        type="submit"
+                        class="btn btn-warning btn-sm"
+                    >
+                        Cancel request
+                    </button>
+                </form>
+            </div>
+        @else
+            {{-- No pending request — show the form. --}}
             <form
                 method="POST"
-                action="{{ route('profile.deletion-request.cancel') }}"
-                onsubmit="return confirm('Cancel your account-deletion request?');"
+                action="{{ route('profile.deletion-request.store') }}"
+                onsubmit="return confirm('Submit account-deletion request? A superadmin will review and confirm by email.');"
+                class="space-y-4"
             >
                 @csrf
+
+                <div>
+                    <label for="deletion-reason" class="block text-sm font-medium text-base-content/80">
+                        Reason <span class="text-xs text-base-content/50 font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                        id="deletion-reason"
+                        name="reason"
+                        rows="3"
+                        maxlength="1000"
+                        placeholder="e.g. I'm leaving the company, please remove my account."
+                        class="textarea textarea-bordered mt-1 block w-full text-sm focus:outline-none focus:border-primary"
+                    >{{ old('reason') }}</textarea>
+                    <p class="mt-1 text-xs text-base-content/60">
+                        Helps the superadmin verify the request. We never share this with anyone else.
+                    </p>
+                </div>
+
                 <button
                     type="submit"
-                    class="inline-flex items-center px-3 py-1.5 bg-white border border-amber-300 rounded-md font-semibold text-xs text-amber-900 uppercase tracking-widest hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 transition"
+                    class="btn btn-error btn-sm gap-1"
                 >
-                    Cancel request
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+                    Request account deletion
                 </button>
             </form>
-        </div>
-    @else
-        {{-- No pending request — show the form. --}}
-        <form
-            method="POST"
-            action="{{ route('profile.deletion-request.store') }}"
-            onsubmit="return confirm('Submit account-deletion request? A superadmin will review and confirm by email.');"
-            class="space-y-4"
-        >
-            @csrf
-
-            <div>
-                <label for="deletion-reason" class="block text-sm font-medium text-gray-700">
-                    Reason <span class="text-xs text-gray-400">(optional)</span>
-                </label>
-                <textarea
-                    id="deletion-reason"
-                    name="reason"
-                    rows="3"
-                    maxlength="1000"
-                    placeholder="e.g. I'm leaving the company, please remove my account."
-                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                >{{ old('reason') }}</textarea>
-                <p class="mt-1 text-xs text-gray-500">
-                    Helps the superadmin verify the request. We never share this with anyone else.
-                </p>
-            </div>
-
-            <button
-                type="submit"
-                class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 focus:bg-red-700 active:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition"
-            >
-                Request Account Deletion
-            </button>
-        </form>
-    @endif
+        @endif
+    </x-ui.card>
 </section>

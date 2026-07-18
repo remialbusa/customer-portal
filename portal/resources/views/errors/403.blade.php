@@ -1,20 +1,39 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            Access denied
-        </h2>
+        <div>
+            <p class="text-xs font-semibold tracking-widest uppercase text-base-content/50 mb-1">
+                Access denied
+            </p>
+            <h2 class="font-semibold text-2xl text-base-content leading-tight">
+                403 — Forbidden
+            </h2>
+        </div>
     </x-slot>
 
-    <div class="py-12">
-        <div class="max-w-md mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white shadow sm:rounded-lg p-6 text-center">
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">403 — Forbidden</h3>
-                <p class="text-sm text-gray-600">{{ $message ?? 'You do not have access to that resource.' }}</p>
-                <a href="{{ url()->previous() ?: route('dashboard') }}"
-                   class="mt-4 inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded text-xs uppercase tracking-widest">
-                    Go back
-                </a>
-            </div>
+    <div class="py-2">
+        <div class="max-w-md mx-auto sm:px-4 lg:px-6">
+            <x-ui.card padding="p-6">
+                <x-slot:icon>
+                    <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-error/10 text-error flex items-center justify-center shrink-0">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0l-7.1 13.25A2 2 0 005 19z"/></svg>
+                    </span>
+                </x-slot:icon>
+
+                <div class="text-center">
+                    <h3 class="text-lg font-semibold text-base-content">
+                        You don't have access to that resource
+                    </h3>
+                    <p class="text-sm text-base-content/70 mt-2">
+                        {{ $message ?? 'This page is restricted. If you think you should have access, please contact a superadmin.' }}
+                    </p>
+                    <div class="mt-4">
+                        <a href="{{ url()->previous() ?: route('dashboard') }}" class="btn btn-primary btn-sm gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            Go back
+                        </a>
+                    </div>
+                </div>
+            </x-ui.card>
         </div>
     </div>
 </x-app-layout>

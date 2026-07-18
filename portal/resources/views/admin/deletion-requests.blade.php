@@ -1,28 +1,34 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Account deletion requests
-            </h2>
-            <a href="{{ route('admin.invites') }}"
-               class="text-sm text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline">
-                ← Customer invites
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+                <p class="text-xs font-semibold tracking-widest uppercase text-base-content/50 mb-1">
+                    Super admin
+                </p>
+                <h2 class="font-semibold text-2xl text-base-content leading-tight">
+                    Account deletion requests
+                </h2>
+            </div>
+            <a href="{{ route('admin.invites') }}" class="btn btn-ghost btn-sm gap-1 self-start sm:self-auto">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                Customer invites
             </a>
         </div>
     </x-slot>
 
-    <div class="py-8">
-        <div class="max-w-5xl mx-auto sm:px-6 lg:px-8 space-y-6">
+    <div class="py-2">
+        <div class="max-w-5xl mx-auto sm:px-4 lg:px-6 space-y-6">
 
             @if (session('status'))
-                <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800">
+                <x-ui.toast type="success" title="All set!">
                     {{ session('status') }}
-                </div>
+                </x-ui.toast>
             @endif
 
             @if ($errors->any())
-                <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
-                    <ul class="list-disc list-inside space-y-1">
+                <div role="alert" class="alert alert-error shadow-sm flex-col items-start gap-1 p-4">
+                    <h3 class="font-semibold text-sm">There were some problems with your input</h3>
+                    <ul class="list-disc list-inside text-xs space-y-0.5">
                         @foreach ($errors->all() as $error)
                             <li>{{ $error }}</li>
                         @endforeach
@@ -31,35 +37,40 @@
             @endif
 
             {{-- ───────  Pending  ─────── --}}
-            <div class="bg-white shadow-sm rounded-lg">
-                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900">Pending</h3>
-                    <span class="text-xs text-gray-500">{{ $pending->count() }} awaiting review</span>
-                </div>
+            <x-ui.card
+                title="Pending"
+                :subtitle="$pending->count() . ' awaiting review'"
+                padding="p-0"
+            >
+                <x-slot:icon>
+                    <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-warning/15 text-warning flex items-center justify-center shrink-0">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </span>
+                </x-slot:icon>
 
                 @if ($pending->isEmpty())
-                    <p class="px-6 py-8 text-sm text-gray-500 text-center">
-                        No pending deletion requests. 🎉
-                    </p>
+                    <div class="px-6 py-10 text-center text-sm text-base-content/60">
+                        No pending deletion requests.
+                    </div>
                 @else
-                    <ul class="divide-y divide-gray-200">
+                    <ul class="divide-y divide-base-300/70">
                         @foreach ($pending as $req)
-                            <li class="px-6 py-4">
+                            <li class="px-5 py-4">
                                 <div class="flex items-start justify-between gap-4">
                                     <div class="flex-1 min-w-0">
-                                        <p class="text-sm font-semibold text-gray-900 break-words">
+                                        <p class="text-sm font-semibold text-base-content break-words">
                                             {{ $req->name ?? '(no name)' }}
-                                            <span class="text-xs text-gray-500 font-normal">— {{ $req->email }}</span>
+                                            <span class="text-xs text-base-content/60 font-normal">— {{ $req->email }}</span>
                                         </p>
-                                        <p class="mt-1 text-xs text-gray-500">
+                                        <p class="mt-1 text-xs text-base-content/60">
                                             Role:
-                                            <span class="font-medium text-gray-700">{{ $req->role ?? '—' }}</span>
-                                            <span class="mx-2 text-gray-300">·</span>
+                                            <span class="font-medium text-base-content/80">{{ $req->role ?? '—' }}</span>
+                                            <span class="mx-2 text-base-content/30">·</span>
                                             Filed {{ $req->created_at->diffForHumans() }}
                                             ({{ $req->created_at->format('M j, Y g:i A') }})
                                         </p>
                                         @if ($req->reason)
-                                            <p class="mt-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded px-3 py-2 italic whitespace-pre-wrap">
+                                            <p class="mt-2 text-sm text-base-content bg-base-200/60 border border-base-300/70 rounded px-3 py-2 italic whitespace-pre-wrap">
                                                 "{{ $req->reason }}"
                                             </p>
                                         @endif
@@ -75,9 +86,10 @@
                                             @csrf
                                             <button
                                                 type="submit"
-                                                class="inline-flex items-center px-3 py-1.5 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 focus:bg-red-700 active:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition"
+                                                class="btn btn-error btn-sm gap-1"
                                             >
-                                                Approve & Delete
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/></svg>
+                                                Approve & delete
                                             </button>
                                         </form>
 
@@ -91,7 +103,7 @@
                                             <input type="hidden" name="decision_note" value="Rejected by {{ $user->name }}">
                                             <button
                                                 type="submit"
-                                                class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition"
+                                                class="btn btn-ghost btn-sm"
                                             >
                                                 Reject
                                             </button>
@@ -102,31 +114,48 @@
                         @endforeach
                     </ul>
                 @endif
-            </div>
+            </x-ui.card>
 
             {{-- ───────  Recent activity  ─────── --}}
-            <div class="bg-white shadow-sm rounded-lg">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="text-lg font-semibold text-gray-900">Recent decisions</h3>
-                </div>
+            <x-ui.card
+                title="Recent decisions"
+                padding="p-0"
+            >
+                <x-slot:icon>
+                    <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-base-200 text-base-content/70 flex items-center justify-center shrink-0">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    </span>
+                </x-slot:icon>
+
                 @if ($recent->isEmpty())
-                    <p class="px-6 py-8 text-sm text-gray-500 text-center">
+                    <div class="px-6 py-10 text-center text-sm text-base-content/60">
                         No decisions yet.
-                    </p>
+                    </div>
                 @else
-                    <ul class="divide-y divide-gray-200">
+                    <ul class="divide-y divide-base-300/70">
                         @foreach ($recent as $req)
-                            <li class="px-6 py-3 text-sm">
+                            @php
+                                $decisionBadge = match ($req->status) {
+                                    'approved' => 'badge-success',
+                                    'rejected' => 'badge-error',
+                                    default    => 'badge-ghost',
+                                };
+                            @endphp
+                            <li class="px-5 py-3 text-sm">
                                 <div class="flex items-center justify-between gap-4">
                                     <div class="flex-1 min-w-0">
-                                        <span class="font-medium text-gray-900">{{ $req->email }}</span>
-                                        <span class="text-xs text-gray-500 ml-2">
-                                            {{ ucfirst($req->status) }}
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium text-base-content">{{ $req->email }}</span>
+                                            <span class="badge {{ $decisionBadge }} badge-sm">
+                                                {{ ucfirst($req->status) }}
+                                            </span>
+                                        </div>
+                                        <span class="text-xs text-base-content/60 ml-0 mt-0.5 block">
                                             by {{ $req->processor?->name ?? '—' }}
                                             on {{ $req->processed_at?->format('M j, Y g:i A') }}
                                         </span>
                                         @if ($req->decision_note)
-                                            <p class="text-xs text-gray-500 mt-0.5 italic">{{ $req->decision_note }}</p>
+                                            <p class="text-xs text-base-content/60 mt-0.5 italic">{{ $req->decision_note }}</p>
                                         @endif
                                     </div>
                                 </div>
@@ -134,8 +163,7 @@
                         @endforeach
                     </ul>
                 @endif
-            </div>
-
+            </x-ui.card>
         </div>
     </div>
 </x-app-layout>
