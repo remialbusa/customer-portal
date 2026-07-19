@@ -146,53 +146,6 @@
                     </div>
                 @endif
 
-                {{-- Real-time status banner (Phase 6). Subscribes
-                     to the ticket.{id}.customer Pusher channel
-                     and reacts to TSP service-report events. --}}
-                <div class="px-5 py-4 border-b border-base-300/70">
-                    <div
-                        x-data="ticketStatusBanner({
-                            ticketId: @js($ticket['id']),
-                            currentStatus: @js($status),
-                        })"
-                        x-init="init()"
-                        class="space-y-3"
-                    >
-                        <div
-                            x-show="flash"
-                            x-cloak
-                            class="rounded-md px-3 py-2 text-sm flex items-start justify-between gap-2 border"
-                            :class="{
-                                'bg-success/10 text-base-content border-success/30': flash && flash.kind === 'status' && newStatus && newStatus.toLowerCase() === 'resolved',
-                                'bg-primary/10  text-base-content border-primary/30': flash && flash.kind === 'report',
-                                'bg-warning/10  text-base-content border-warning/30': flash && flash.kind === 'status',
-                            }"
-                        >
-                            <span x-text="flash ? flash.message : ''"></span>
-                            <button
-                                type="button"
-                                @click="dismissFlash()"
-                                class="text-xs underline shrink-0"
-                            >dismiss</button>
-                        </div>
-
-                        <div
-                            x-show="resolution"
-                            x-cloak
-                            class="rounded-md border border-success/30 bg-success/10 p-3 text-sm"
-                        >
-                            <div class="text-xs font-semibold text-success uppercase">
-                                Service complete
-                            </div>
-                            <p class="mt-1 text-base-content whitespace-pre-wrap" x-text="resolution?.customer_summary"></p>
-                            <p class="mt-2 text-[11px] text-base-content/70">
-                                Resolved by
-                                <span x-text="resolution?.author_name"></span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
                 {{-- Description --}}
                 @if ($desc)
                     <div class="px-5 py-4">
