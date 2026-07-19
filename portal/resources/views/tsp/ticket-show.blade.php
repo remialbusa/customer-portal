@@ -6,7 +6,7 @@
                     Service request
                 </p>
                 <h2 class="font-semibold text-2xl text-base-content leading-tight truncate">
-                    Ticket #{{ $ticket['id'] }} &mdash; {{ $ticket['name'] }}
+                    Ticket #{{ $ticket['id'] }} &mdash; {{ $ticket['column_values']['text_mm5c1w5n']['text'] ?: $ticket['name'] }}
                 </h2>
             </div>
             <a href="{{ route('tsp.dashboard') }}" class="btn btn-ghost btn-sm gap-1 self-start sm:self-auto">

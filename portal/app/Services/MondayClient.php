@@ -265,6 +265,8 @@ class MondayClient
                 'resolved', 'closed', 'done', 'complete', 'completed',
             ], true);
 
+            $subjectText = $item['column_values'][$cols['subject']]['text'] ?? null;
+
             return [
                 'id'                  => $item['id'],
                 'name'                => $item['name'],
@@ -274,6 +276,7 @@ class MondayClient
                 'request_type_text'   => $reqType,
                 'tsp_person_ids'      => $tspIds,
                 'is_open'             => $isOpen,
+                'subject_text'        => $subjectText,
                 'item'                => $item,
             ];
         }, $items);
@@ -461,7 +464,11 @@ class MondayClient
                 if (! $t['is_open']) {
                     return false;
                 }
-                $existing = strtolower(trim((string) $t['name']));
+                // Compare against the dedicated subject column first;
+                // fall back to the item name for legacy tickets.
+                $existing = strtolower(trim(
+                    $t['subject_text'] ?: $t['name'] ?? ''
+                ));
                 if ($existing === '') {
                     return false;
                 }
@@ -761,23 +768,16 @@ class MondayClient
             }
         }
 
-        // The item name on Monday IS the customer's subject — verbatim.
-        // We used to:
-        //   1. Prepend "Brand - Model | " to the subject, then strip
-        //      it in findOpenDuplicateTicketForCustomer().
-        //   2. Create with the subject as a placeholder, then rename
-        //      the item to "Ticket+<id>".
-        // Both transformations hid the subject on the board and on
-        // the portal's ticket header. The user wants the subject to
-        // be the visible title, so we just pass it through.
-        //
-        // brand / model / serial are still accepted in $data (for
-        // forward-compat with the customer form), but they no longer
-        // influence the item name. Brand and model live on the
-        // customer record (Customers board) — see services.monday.
-        // customers_columns.brand / .model.
-        $name = (string) $data['name'];
+        // Subject goes into the dedicated text column — it is separate
+        // from the item name. After creation we rename the item to
+        // "Ticket #<id>" so the board shows a clean identifier.
+        $subject = (string) ($data['name'] ?? '');
+        if (! empty($cols['subject']) && $subject !== '') {
+            $columnValues[$cols['subject']] = $subject;
+        }
 
+        // Create the item with the subject as a temporary name (so the
+        // board is never blank), then immediately rename to "Ticket #<id>".
         $graphql = <<<'GQL'
         mutation ($boardId: ID!, $itemName: String!, $columnValues: JSON!) {
             create_item(
@@ -794,14 +794,33 @@ class MondayClient
 
         $vars = [
             'boardId'      => (string) $boardId,
-            'itemName'     => $name,
+            'itemName'     => $subject ?: 'New Ticket',
             'columnValues' => json_encode((object) $columnValues),
         ];
 
         $resp = $this->query($graphql, $vars);
 
+        $itemId = $resp['create_item']['id'] ?? null;
+
+        // Rename the item to "Ticket #<id>" so the board shows a stable
+        // identifier instead of the full subject text.
+        if ($itemId && ! empty($cols['subject'])) {
+            try {
+                $this->changeColumnValues($boardId, (int) $itemId, [
+                    'name' => "Ticket #{$itemId}",
+                ]);
+            } catch (\Throwable $e) {
+                // Non-fatal: the subject is already in the column. Log and
+                // continue — the item will keep its temporary name.
+                \Illuminate\Support\Facades\Log::warning('createTicket: rename failed', [
+                    'item_id' => $itemId,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
+
         return [
-            'id'   => $resp['create_item']['id']   ?? null,
+            'id'   => $itemId,
             'name' => $resp['create_item']['name'] ?? null,
         ];
     }

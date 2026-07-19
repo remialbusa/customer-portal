@@ -57,6 +57,7 @@ return [
             'tsp'             => 'multiple_person_mm4fqar3',
             'internal_notes'  => 'long_text_mm4f8ve0',
             'response_status' => 'color_mm4vbp35',   // "NOT YET" → "RESPONDED" once a TSP is assigned
+            'subject'         => 'text_mm5c1w5n',     // Customer-submitted subject (separate from item name)
             'time_tracking'   => 'duration_mm4hesrz', // Monday native time_tracking widget — "Response Time"
         ],
 
