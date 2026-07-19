@@ -208,7 +208,7 @@
                                          x-transition:leave-end="opacity-0 scale-95"
                                          class="relative bg-base-100 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                                         {{-- Header --}}
-                                        <div class="px-6 pt-6 pb-5">
+                                        <div class="px-8 pt-8 pb-5">
                                             <div class="flex items-start gap-3">
                                                 <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
@@ -221,7 +221,7 @@
                                         </div>
 
                                         {{-- Ticket summary --}}
-                                        <div class="mx-6 mb-5 p-4 bg-base-200/60 rounded-xl space-y-2">
+                                        <div class="mx-8 mb-5 p-4 bg-base-200/60 rounded-xl space-y-2">
                                             <div class="flex items-center gap-2">
                                                 <span class="text-[11px] font-mono text-base-content/50">#{{ $t['id'] }}</span>
                                                 <span class="badge {{ $statusConfig['class'] }} badge-sm gap-1 font-medium">
@@ -244,7 +244,7 @@
                                         </div>
 
                                         {{-- Actions --}}
-                                        <div class="px-6 pt-6 pb-10 flex justify-end gap-2">
+                                        <div class="px-8 pt-6 pb-10 flex justify-end gap-2">
                                             <button type="button"
                                                     x-on:click="claimOpen = false"
                                                     class="btn btn-ghost btn-sm">
