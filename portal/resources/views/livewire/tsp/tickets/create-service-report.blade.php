@@ -43,8 +43,6 @@
     $stepLabels = [
         1 => 'Equipment & time',
         2 => 'Work details',
-        3 => 'Signatures',
-        4 => 'Review',
     ];
 
     $narratives = [
@@ -353,190 +351,10 @@
                 </div>
             </section>
 
-            {{-- ═════════════════════════════════════════════════════
-                 STEP 3 — Signatures
-                 ═════════════════════════════════════════════════════ --}}
-            <section x-show="currentStep === 3" x-transition.opacity>
-                <div class="mb-4">
-                    <h3 class="text-base font-semibold text-base-content">Signatures</h3>
-                    <p class="text-sm text-base-content/60 mt-0.5">Collect signatures from everyone involved in this service call.</p>
-                </div>
+            {{-- Step 3 (Signatures) and Step 4 (Review & Submit) removed —
+                 form is now a 2-step wizard: Equipment → Work details → Submit --}}
 
-                <div class="space-y-3">
-                    {{-- TSP signature --}}
-                    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">YOU</span>
-                            <div>
-                                <div class="text-sm font-semibold text-base-content">Field service engineer</div>
-                                <div class="text-[11px] text-base-content/55">That's you, signing off on the work you performed.</div>
-                            </div>
-                        </div>
-                        <label class="form-control w-full mb-2">
-                            <div class="label py-1"><span class="label-text text-sm font-medium">Your name <span class="text-error">*</span></span></div>
-                            <input
-                                type="text"
-                                wire:model="tspSignatureName"
-                                class="input input-bordered input-sm w-full"
-                                placeholder="{{ $tspName }}"
-                                required
-                            />
-                        </label>
-                        <x-signature-pad name="tspSignatureDataUrl" :width="500" :height="120" />
-                    </div>
-
-                    {{-- Customer signature --}}
-                    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="w-7 h-7 rounded-md bg-secondary/10 text-secondary flex items-center justify-center text-xs font-bold">CST</span>
-                            <div>
-                                <div class="text-sm font-semibold text-base-content">Customer</div>
-                                <div class="text-[11px] text-base-content/55">The hospital contact who authorized the work.</div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-                            <label class="form-control w-full">
-                                <div class="label py-1"><span class="label-text text-sm font-medium">Customer name <span class="text-error">*</span></span></div>
-                                <input
-                                    type="text"
-                                    wire:model="customerName"
-                                    class="input input-bordered input-sm w-full"
-                                    placeholder="Customer's full name"
-                                    required
-                                />
-                            </label>
-                            <label class="form-control w-full">
-                                <div class="label py-1"><span class="label-text text-sm font-medium">Customer email <span class="text-error">*</span></span></div>
-                                <input
-                                    type="email"
-                                    wire:model="customerEmail"
-                                    class="input input-bordered input-sm w-full"
-                                    placeholder="customer@example.com"
-                                    required
-                                />
-                            </label>
-                        </div>
-                        <x-signature-pad name="customerSignatureDataUrl" :width="500" :height="120" />
-                    </div>
-
-                    {{-- BIOMED signature --}}
-                    <div class="rounded-lg border border-base-300 bg-base-100 p-4">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="w-7 h-7 rounded-md bg-accent/10 text-accent flex items-center justify-center text-xs font-bold">BMD</span>
-                            <div>
-                                <div class="text-sm font-semibold text-base-content">BIOMED</div>
-                                <div class="text-[11px] text-base-content/55">The on-site biomed contact, if any.</div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-                            <label class="form-control w-full">
-                                <div class="label py-1"><span class="label-text text-sm font-medium">Biomed name <span class="text-error">*</span></span></div>
-                                <input
-                                    type="text"
-                                    wire:model="biomedName"
-                                    class="input input-bordered input-sm w-full"
-                                    placeholder="Biomed contact's full name"
-                                    required
-                                />
-                            </label>
-                            <label class="form-control w-full">
-                                <div class="label py-1"><span class="label-text text-sm font-medium">Biomed email <span class="text-error">*</span></span></div>
-                                <input
-                                    type="email"
-                                    wire:model="biomedEmail"
-                                    class="input input-bordered input-sm w-full"
-                                    placeholder="biomed@example.com"
-                                    required
-                                />
-                            </label>
-                        </div>
-                        <x-signature-pad name="biomedSignatureDataUrl" :width="500" :height="120" />
-                    </div>
-                </div>
-
-                {{-- Team members (optional) --}}
-                <div class="mt-4 rounded-lg border border-base-300 bg-base-100 p-4">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="w-6 h-6 rounded-md bg-base-200 text-base-content/70 flex items-center justify-center" aria-hidden="true">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-                        </span>
-                        <h4 class="text-sm font-semibold text-base-content">Team members <span class="text-xs font-normal text-base-content/55 ml-1">optional</span></h4>
-                    </div>
-                    <p class="text-[11px] text-base-content/55 mb-2">Did other technicians help with this service? Add their IDs below, separated by commas.</p>
-                    <input
-                        type="text"
-                        wire:model.live="tspWorkWithCsv"
-                        class="input input-bordered input-sm w-full"
-                        placeholder="e.g. 77787515, 77787561"
-                        inputmode="numeric"
-                        autocomplete="off"
-                    />
-                    <div class="flex items-center justify-between mt-2 text-[11px] text-base-content/55">
-                        <span>Leave blank if you worked alone.</span>
-                        <span
-                            x-data="{ n: 0 }"
-                            x-init="n = ($wire.get('tspWorkWithCsv') || '').split(',').map(s => s.trim()).filter(Boolean).length"
-                            :class="n > 0 ? 'text-primary font-semibold' : ''"
-                        >
-                            <span x-text="n"></span> member<span x-show="n !== 1">s</span> added
-                        </span>
-                    </div>
-                </div>
-            </section>
-
-            {{-- ═════════════════════════════════════════════════════
-                 STEP 4 — Review & Submit
-                 ═════════════════════════════════════════════════════ --}}
-            <section x-show="currentStep === 4" x-transition.opacity>
-                <div class="mb-4">
-                    <h3 class="text-base font-semibold text-base-content">Review &amp; submit</h3>
-                    <p class="text-sm text-base-content/60 mt-0.5">Take a moment to confirm everything is correct. You can jump back to any step.</p>
-                </div>
-
-                @php
-                    $reviewSections = [
-                        ['title' => 'Equipment & service time', 'step' => 1, 'rows' => [
-                            ['label' => 'Serial number',  'val' => $machineSystemSerialNumber ?: '—'],
-                            ['label' => 'Software',       'val' => $softwareVersionNo ?: '—'],
-                            ['label' => 'Arrival',        'val' => $serviceStartDateTime ?: '—'],
-                            ['label' => 'Departure',      'val' => $serviceEndDateTime ?: '—'],
-                            ['label' => 'Total duration', 'val' => $duration],
-                        ]],
-                        ['title' => 'Status & work details', 'step' => 2, 'rows' => [
-                            ['label' => 'Status',                 'val' => $currentTone['label']],
-                            ['label' => 'Problem',                'val' => $problemAndConcerns, 'multiline' => true],
-                            ['label' => 'Job done',               'val' => $jobDone,            'multiline' => true],
-                            ['label' => 'Parts replaced',         'val' => $partsReplaced,      'multiline' => true],
-                            ['label' => 'Recommendation',         'val' => $recommendation,     'multiline' => true],
-                            ['label' => 'Additional notes',       'val' => $remarks,            'multiline' => true],
-                        ]],
-                        ['title' => 'Signatures', 'step' => 3, 'rows' => [
-                            ['label' => 'TSP',        'val' => $tspSignatureName ? ($tspSignatureName . ' — ' . ($tspSignatureDataUrl ? 'signed' : 'unsigned')) : '—'],
-                            ['label' => 'Customer',   'val' => $customerName ? ($customerName . ' · ' . $customerEmail . ' — ' . ($customerSignatureDataUrl ? 'signed' : 'unsigned')) : '—'],
-                            ['label' => 'BIOMED',     'val' => $biomedName ? ($biomedName . ' · ' . $biomedEmail . ' — ' . ($biomedSignatureDataUrl ? 'signed' : 'unsigned')) : '—'],
-                        ]],
-                    ];
-                @endphp
-
-                <div class="space-y-3">
-                    @foreach ($reviewSections as $section)
-                        <div class="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
-                            <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-300/70 bg-base-200/40">
-                                <h4 class="text-sm font-semibold text-base-content">{{ $section['title'] }}</h4>
-                                <button type="button" class="text-xs font-medium text-primary hover:underline" @click="goToStep({{ $section['step'] }})">Edit</button>
-                            </div>
-                            <dl class="divide-y divide-base-300/60 text-sm">
-                                @foreach ($section['rows'] as $row)
-                                    <div class="px-4 py-2.5 grid grid-cols-3 gap-3 {{ empty($row['val']) || $row['val'] === '—' ? 'opacity-60' : '' }}">
-                                        <dt class="text-[11px] font-semibold uppercase tracking-wider text-base-content/55 col-span-1">{{ $row['label'] }}</dt>
-                                        <dd class="text-base-content col-span-2 {{ ! empty($row['multiline']) ? 'whitespace-pre-wrap' : 'truncate' }}">{{ $row['val'] ?: '—' }}</dd>
-                                    </div>
-                                @endforeach
-                            </dl>
-                        </div>
-                    @endforeach
-                </div>
-            </section>
+            {{-- Step 4 (Review & Submit) removed — see note above --}}
 
         </div>
 
@@ -577,7 +395,7 @@
             <button
                 type="button"
                 class="btn btn-primary btn-sm gap-1.5"
-                x-show="currentStep < 4"
+                x-show="currentStep < 2"
                 x-cloak
                 @click="goToStep(currentStep + 1)"
             >
@@ -588,7 +406,7 @@
             <button
                 type="submit"
                 class="btn btn-primary btn-sm gap-1.5"
-                x-show="currentStep === 4"
+                x-show="currentStep === 2"
                 x-cloak
                 wire:loading.attr="disabled"
                 wire:target="submit"
@@ -629,10 +447,6 @@
                    so the page just works as-is - we only need to
                    add a touch of margin so the inner steps breathe. */
                 .tsr-form { margin: 0 -.25rem; }
-                .tsr-form .signature-pad__canvas {
-                    background: #fff;
-                    border-color: oklch(var(--bc) / 0.2);
-                }
                 [x-cloak] { display: none !important; }
             </style>
             <script>
@@ -648,10 +462,19 @@
                 //    * the friendly "X queued / Y synced" pill on the
                 //      sticky bar
                 //    * smooth-scroll to the first error on submit failure
-                //    * pre-filling the TSP signature name on first focus
                 // ----------------------------------------------------------------
                 window.tsrForm = function () {
                     return {
+                        // Wizard navigation
+                        currentStep: 1,
+                        totalSteps:  2,
+                        goToStep(n) {
+                            if (n < 1 || n > this.totalSteps) return;
+                            this.currentStep = n;
+                            // Scroll to top of form
+                            this.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        },
+
                         // Connection state
                         online: (typeof navigator !== 'undefined' ? navigator.onLine : true),
                         forcedOffline: false,
@@ -756,15 +579,13 @@
 
                             // Fallback: also listen for DOM input/change
                             // events on the form root. The form is
-                            // wrapped in `wire:ignore.self` (so Alpine
-                            // can fully control the signature pads
-                            // without Livewire trying to re-render the
-                            // canvas), which means wire:model on text
-                            // inputs is intentionally inert. The
-                            // `livewire:updated` event therefore does
-                            // not fire when the user types, so we also
-                            // hook the native input event for any
-                            // input/textarea/select inside the form.
+                            // wrapped in `wire:ignore.self`, so
+                            // wire:model on text inputs is intentionally
+                            // inert. The `livewire:updated` event
+                            // therefore does not fire when the user
+                            // types, so we also hook the native input
+                            // event for any input/textarea/select inside
+                            // the form.
                             const root = this.$el;
                             if (root) {
                                 // The `input`/`change` events are
@@ -793,9 +614,6 @@
                                 root.addEventListener('input',  markTouched);
                                 root.addEventListener('change', markTouched);
                             }
-
-                            // Save on signature-pad commits.
-                            window.addEventListener('tsr.signature-committed', () => this._scheduleDraftSave());
 
                             // Final save on page hide (covers refresh
                             // and tab close). navigator.sendBeacon is
@@ -884,13 +702,6 @@
                                                  || el.name
                                                  || el.id;
                                         if (! key) return;
-                                        // Hidden inputs that carry
-                                        // signature dataUrls are
-                                        // captured separately under
-                                        // `signatures` — don't duplicate.
-                                        if (el.type === 'hidden' && /SignatureDataUrl$/.test(key)) {
-                                            return;
-                                        }
                                         let val;
                                         if (el.type === 'checkbox') {
                                             val = !! el.checked;
@@ -904,44 +715,12 @@
                                         fields[key] = val;
                                     });
                                 }
-                                // No Livewire fallback: the form is
-                                // `wire:ignore.self`, so Livewire never
-                                // sees any of these inputs anyway. Calling
-                                // `comp.getData()` (a Livewire 2 method)
-                                // throws `MethodNotFoundException` on
-                                // Livewire 3, so we deliberately read
-                                // everything from the DOM and stop here.
-
-                                // Signatures are stored in hidden
-                                // inputs that the Alpine signature-pad
-                                // owns via x-model. Pull them straight
-                                // from the DOM (wire:ignore.self means
-                                // they don't make it into Livewire
-                                // state via wire:model).
-                                const readSig = (name) => {
-                                    if (! this.$el) return '';
-                                    const el = this.$el.querySelector(`input[name="${name}"]`);
-                                    return (el && el.value) || '';
-                                };
-                                const sigs = {
-                                    tspSignatureDataUrl:      readSig('tspSignatureDataUrl'),
-                                    customerSignatureDataUrl: readSig('customerSignatureDataUrl'),
-                                    biomedSignatureDataUrl:   readSig('biomedSignatureDataUrl'),
-                                };
-                                // Promote the dataUrls into fields too
-                                // so a future roundtrip can still
-                                // restore the values without needing a
-                                // separate hydrate path.
-                                if (sigs.tspSignatureDataUrl)      fields.tspSignatureDataUrl      = sigs.tspSignatureDataUrl;
-                                if (sigs.customerSignatureDataUrl) fields.customerSignatureDataUrl = sigs.customerSignatureDataUrl;
-                                if (sigs.biomedSignatureDataUrl)   fields.biomedSignatureDataUrl   = sigs.biomedSignatureDataUrl;
                                 const draft = {
                                     v:           1,
                                     savedAt:     Date.now(),
                                     localId:     window.__tsrLocalId || null,
                                     ticket:      window.__tsrTicketNumber || null,
                                     fields:      fields,
-                                    signatures:  sigs,
                                 };
                                 window.localStorage.setItem(this._draftKey, JSON.stringify(draft));
                             } catch (e) {
@@ -985,11 +764,6 @@
                             // alone would not change what the user
                             // sees). We then also try comp.set() so
                             // the server-side state matches.
-                            const skip = new Set([
-                                'tspSignatureDataUrl',
-                                'customerSignatureDataUrl',
-                                'biomedSignatureDataUrl',
-                            ]);
                             const findControl = (key) => {
                                 if (! this.$el) return null;
                                 return this.$el.querySelector(
@@ -999,7 +773,6 @@
                             this._hydrating = true;
                             try {
                             for (const [k, v] of Object.entries(draft.fields)) {
-                                if (skip.has(k)) continue;
                                 if (v === undefined || v === null) continue;
                                 const el = findControl(k);
                                 if (el) {
@@ -1036,62 +809,8 @@
                                 this._hydrating = false;
                             }
 
-                            // Restore signatures onto the canvases.
-                            this.$nextTick(() => {
-                                if (draft.signatures) {
-                                    if (draft.signatures.tspSignatureDataUrl) {
-                                        this._restoreSignature('tspSignatureDataUrl',      draft.signatures.tspSignatureDataUrl);
-                                    }
-                                    if (draft.signatures.customerSignatureDataUrl) {
-                                        this._restoreSignature('customerSignatureDataUrl', draft.signatures.customerSignatureDataUrl);
-                                    }
-                                    if (draft.signatures.biomedSignatureDataUrl) {
-                                        this._restoreSignature('biomedSignatureDataUrl',   draft.signatures.biomedSignatureDataUrl);
-                                    }
-                                }
-                            });
-
                             this._draftRestored = true;
                             window.dispatchEvent(new CustomEvent('tsr.draft-restored', { detail: { localId: window.__tsrLocalId } }));
-                        },
-                        _restoreSignature(name, dataUrl) {
-                            try {
-                                // Find the canvas that belongs to the
-                                // hidden input with this name. The
-                                // signature-pad component puts them
-                                // inside the same .signature-pad root.
-                                const root = this.$root.closest('[wire\\:id]');
-                                if (! root) return;
-                                const inputs = root.querySelectorAll('input[type="hidden"]');
-                                for (const inp of inputs) {
-                                    if (inp.getAttribute('name') !== name) continue;
-                                    const padRoot = inp.closest('.signature-pad');
-                                    if (! padRoot) break;
-                                    // Alpine owns the canvas; we read
-                                    // it back from the data attribute
-                                    // it stamped in init() (we add it
-                                    // in the patch below). Fall back to
-                                    // walking the DOM.
-                                    const canvas = padRoot.querySelector('canvas');
-                                    if (! canvas) break;
-                                    const ctx = canvas.getContext('2d');
-                                    const img = new Image();
-                                    img.onload = () => {
-                                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                                        // Tell the Alpine pad instance
-                                        // that the canvas now has ink so
-                                        // its `hasInk` flag is honest.
-                                        // The pad listens for this
-                                        // custom event.
-                                        window.dispatchEvent(new CustomEvent('tsr.signature-hydrated', {
-                                            detail: { name: name, dataUrl: dataUrl }
-                                        }));
-                                    };
-                                    img.src = dataUrl;
-                                    break;
-                                }
-                            } catch (e) { /* ignore */ }
                         },
                         discardDraft() {
                             this._draftDiscarding = true;
