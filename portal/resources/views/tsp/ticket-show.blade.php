@@ -24,6 +24,7 @@
         $email    = $ticket['column_values']['email']['text']                     ?? null;
         $created  = $ticket['column_values']['date']['text']                      ?? null;
         $desc     = $ticket['column_values']['long_text7']['text']                ?? null;
+        $subject  = $ticket['column_values']['text_mm5c1w5n']['text']             ?? null;
 
         // Brand/model — text columns on the Tickets board. Free-text
         // values; render a graceful fallback for legacy tickets where
@@ -142,6 +143,14 @@
                                 <div class="mt-0.5 text-sm text-base-content">{{ $created ?? '—' }}</div>
                             </div>
                         </div>
+
+                        {{-- Subject --}}
+                        @if ($subject)
+                            <div class="px-5 py-4 border-b border-base-300/70">
+                                <div class="text-[11px] font-semibold text-base-content/60 uppercase tracking-wider">Subject</div>
+                                <div class="mt-0.5 text-sm font-medium text-base-content">{{ $subject }}</div>
+                            </div>
+                        @endif
 
                         {{-- Description --}}
                         @if ($desc)
