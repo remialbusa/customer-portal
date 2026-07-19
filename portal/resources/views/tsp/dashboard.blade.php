@@ -244,7 +244,7 @@
                                         </div>
 
                                         {{-- Actions --}}
-                                        <div class="px-6 pt-5 pb-8 flex justify-end gap-2">
+                                        <div class="px-6 pt-6 pb-10 flex justify-end gap-2">
                                             <button type="button"
                                                     x-on:click="claimOpen = false"
                                                     class="btn btn-ghost btn-sm">
