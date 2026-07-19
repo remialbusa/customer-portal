@@ -152,7 +152,7 @@
                                 $brand = $t['item']['column_values']['text_mm5apcrc']['text'] ?? null;
                                 $model = $t['item']['column_values']['text_mm5am2kf']['text'] ?? null;
                             @endphp
-                            <li>
+                            <li x-data="{ claimOpen: false }">
                                 <div class="flex items-center gap-3 px-4 py-3.5 hover:bg-base-200/60 transition group">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
@@ -177,15 +177,88 @@
                                             @endif
                                         </div>
                                     </div>
-                                    <form method="POST" action="{{ route('tsp.tickets.claim', $t['id']) }}" class="flex-shrink-0">
-                                        @csrf
-                                        <button type="submit"
-                                                class="btn btn-sm btn-primary gap-1"
-                                                onclick="return confirm('Claim ticket #{{ $t['id'] }}? It will be assigned to you.')">
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                                            Claim
-                                        </button>
-                                    </form>
+                                    <button type="button"
+                                            x-on:click="claimOpen = true"
+                                            class="btn btn-sm btn-primary gap-1 flex-shrink-0">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                        Claim
+                                    </button>
+                                </div>
+
+                                {{-- Claim confirmation modal --}}
+                                <div x-show="claimOpen"
+                                     x-transition:enter="ease-out duration-200"
+                                     x-transition:enter-start="opacity-0"
+                                     x-transition:enter-end="opacity-100"
+                                     x-transition:leave="ease-in duration-150"
+                                     x-transition:leave-start="opacity-100"
+                                     x-transition:leave-end="opacity-0"
+                                     class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                                     x-cloak>
+                                    {{-- Backdrop --}}
+                                    <div class="absolute inset-0 bg-black/50" x-on:click="claimOpen = false"></div>
+
+                                    {{-- Dialog --}}
+                                    <div x-show="claimOpen"
+                                         x-transition:enter="ease-out duration-200"
+                                         x-transition:enter-start="opacity-0 scale-95"
+                                         x-transition:enter-end="opacity-100 scale-100"
+                                         x-transition:leave="ease-in duration-150"
+                                         x-transition:leave-start="opacity-100 scale-100"
+                                         x-transition:leave-end="opacity-0 scale-95"
+                                         class="relative bg-base-100 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                                        {{-- Header --}}
+                                        <div class="px-6 pt-6 pb-4">
+                                            <div class="flex items-start gap-3">
+                                                <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <h3 class="text-lg font-bold text-base-content">Claim this ticket?</h3>
+                                                    <p class="text-sm text-base-content/60 mt-0.5">It will be assigned to you and removed from the regional pool.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {{-- Ticket summary --}}
+                                        <div class="mx-6 mb-4 p-4 bg-base-200/60 rounded-xl space-y-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-[11px] font-mono text-base-content/50">#{{ $t['id'] }}</span>
+                                                <span class="badge {{ $statusConfig['class'] }} badge-sm gap-1 font-medium">
+                                                    <span class="w-1.5 h-1.5 rounded-full {{ $statusConfig['dot'] }}"></span>
+                                                    {{ $t['status_text'] ?? '—' }}
+                                                </span>
+                                                @if(!empty($t['customer_region']))
+                                                    <span class="badge badge-outline badge-sm text-[10px]">{{ $t['customer_region'] }}</span>
+                                                @endif
+                                            </div>
+                                            <p class="text-sm font-semibold text-base-content leading-snug">
+                                                {{ $t['subject_text'] ?: $t['name'] }}
+                                            </p>
+                                            @if($brand || $model)
+                                                <div class="flex items-center gap-1 text-xs text-base-content/60">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                                                    {{ trim(($brand ?? '') . ' ' . (($brand && $model) ? '· ' : '') . ($model ?? '')) }}
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        {{-- Actions --}}
+                                        <div class="px-6 pb-6 flex justify-end gap-2">
+                                            <button type="button"
+                                                    x-on:click="claimOpen = false"
+                                                    class="btn btn-ghost btn-sm">
+                                                Cancel
+                                            </button>
+                                            <form method="POST" action="{{ route('tsp.tickets.claim', $t['id']) }}">
+                                                @csrf
+                                                <button type="submit" class="btn btn-primary btn-sm gap-1.5">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                    Yes, claim ticket
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
                             </li>
                         @endforeach
