@@ -368,12 +368,14 @@ class MondayClient
         $tspCol  = (string) config('services.monday.tickets_columns.tsp');
 
         // Write the person into the People column
+        // NOTE: changeColumnValues() already calls json_encode on the
+        // entire columnValues array, so we pass a raw PHP array here.
         $this->changeColumnValues($boardId, $ticketItemId, [
-            $tspCol => json_encode([
+            $tspCol => [
                 'personsAndTeams' => [
                     ['id' => (int) $mondayPersonId, 'kind' => 'person'],
                 ],
-            ]),
+            ],
         ]);
 
         // Flip response status
