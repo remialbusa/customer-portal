@@ -74,9 +74,6 @@
                                     <input type="hidden" name="brand"        value="{{ old('brand') }}">
                                     <input type="hidden" name="model"        value="{{ old('model') }}">
                                     <input type="hidden" name="serial"       value="{{ old('serial') }}">
-                                    @foreach (old('assigned_tsp_ids', []) as $tid)
-                                        <input type="hidden" name="assigned_tsp_ids[]" value="{{ $tid }}">
-                                    @endforeach
                                     <button type="submit" class="btn btn-warning btn-sm">
                                         Submit anyway
                                     </button>
@@ -243,136 +240,20 @@
                     </div>
                 </x-ui.card>
 
-                {{-- ───── Preferred TSPs ─────
-                     Customer picks which on-site technicians / IT
-                     specialists they'd like assigned to the ticket.
-                     The list is scoped to the customer's region (when
-                     we can resolve one) so the picker shows the team
-                     physically closest to them. Region resolution
-                     happens in TicketController::create() via
-                     RegionResolver, which inspects `users.region`,
-                     `users.branch`, and `users.address` in that order.
-
-                     When we can't resolve a region, we fall back to
-                     showing all 4 region groups so the customer can
-                     still pick someone. Members without a Monday
-                     person id (so we can't assign them via the People
-                     column) are listed but disabled. --}}
-                @php
-                    // Decode the previous selection back to the
-                    // checkbox state when re-rendering after a
-                    // validation error. old() returns null when the
-                    // form was submitted with the field empty.
-                    $oldTsp = collect(old('assigned_tsp_ids', []))
-                        ->map(fn ($v) => (int) $v)
-                        ->all();
-                    $oldTsp = array_flip($oldTsp);
-                    $isScoped = $tspDirectory->contains(fn ($g) => $g['scoped'] ?? false);
-                    $regionLabel = $customerRegion
-                        ? (\App\Support\PersonnelDirectory::REGION_LABELS[$customerRegion] ?? $customerRegion)
-                        : null;
-                @endphp
-                <x-ui.card padding="p-0"
-                    title="Preferred technicians"
-                    subtitle="Optional — pick the field engineers or IT specialists you'd like assigned. Leave blank if you have no preference and we'll route it to the right team."
-                >
-                    <x-slot:icon>
-                        <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                        </span>
-                    </x-slot:icon>
-                    @if ($isScoped && $regionLabel)
-                        <p class="text-xs text-secondary px-5 pt-3 pb-1 flex items-start gap-1.5">
-                            <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
-                            Showing technicians in <span class="font-semibold">{{ $regionLabel }}</span> based on your registered branch / address.
-                        </p>
-                    @elseif (! $isScoped)
-                        <div class="alert bg-warning/10 border border-warning/30 text-base-content/80 rounded-xl py-2 px-3 mx-5 mt-3">
-                            <span aria-hidden="true" class="text-base">⚠</span>
-                            <div class="text-xs">
-                                We couldn't determine your area from your profile — showing all available technicians.
-                                <a href="{{ route('profile') }}" class="link link-primary">Update your branch / address</a>
-                                to see only those closest to you.
-                            </div>
+                {{-- ───── Technician assignment info ─────
+                     Customers no longer pick technicians. The ticket
+                     goes into the regional pool and available TSPs
+                     claim it from their dashboard. --}}
+                <x-ui.card padding="p-5">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center text-xl flex-shrink-0" aria-hidden="true">
+                            👷
                         </div>
-                    @endif
-                    <div class="px-5 py-4"
-                         x-data='{ selected: @js((int) count($oldTsp)), clearAll() { const inputs = this.$refs.form.querySelectorAll("input[type=checkbox]"); inputs.forEach(el => { if (el.name && el.name.indexOf("assigned_tsp_ids") === 0) { el.checked = false; } }); this.selected = 0; } }'>
-                        <div class="flex items-center justify-between mb-4">
-                            <p class="text-xs text-base-content/60">
-                                <span x-text="selected"></span> selected
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-semibold text-base-content">Technician assignment</h3>
+                            <p class="mt-1 text-sm text-base-content/60">
+                                You don't need to pick a technician. Your request will be routed to the next available field engineer in your area.
                             </p>
-                            <button type="button"
-                                    @click="clearAll()"
-                                    x-show="selected > 0"
-                                    class="text-xs text-base-content/60 hover:text-base-content underline">
-                                Clear all
-                            </button>
-                        </div>
-                        <div x-ref="form">
-                            @if ($tspDirectory->every(fn ($g) => $g['members']->isEmpty()))
-                                @if ($isScoped)
-                                    <p class="text-sm text-base-content/60 italic">
-                                        No field engineers or IT specialists are currently assigned to your area
-                                        @if ($regionLabel)({{ $regionLabel }})@endif.
-                                        Your ticket will still be created — it will be auto-routed to the nearest available team.
-                                    </p>
-                                @else
-                                    <p class="text-sm text-base-content/60 italic">
-                                        No field engineers or IT specialists are currently configured.
-                                        Your ticket will still be created — it will be auto-routed to the on-call team.
-                                    </p>
-                                @endif
-                            @else
-                                <div class="space-y-5">
-                                    @foreach ($tspDirectory as $group)
-                                        @if ($group['members']->isNotEmpty())
-                                            <div>
-                                                <h4 class="text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                                                    {{ $group['label'] }}
-                                                    <span class="text-base-content/40 normal-case font-normal">
-                                                        ({{ $group['members']->count() }})
-                                                    </span>
-                                                </h4>
-                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                    @foreach ($group['members'] as $m)
-                                                        <label class="flex items-start gap-2 px-3 py-2 border border-base-300 rounded-lg cursor-pointer hover:bg-base-200/60 transition has-[:checked]:border-secondary has-[:checked]:bg-secondary/10 {{ $m['assignable'] ? '' : 'opacity-50 cursor-not-allowed' }}">
-                                                            <input type="checkbox"
-                                                                   name="assigned_tsp_ids[]"
-                                                                   value="{{ $m['id'] }}"
-                                                                   @checked(isset($oldTsp[$m['id']]))
-                                                                   @disabled(! $m['assignable'])
-                                                                   @change="selected += $event.target.checked ? 1 : -1"
-                                                                   class="checkbox checkbox-sm checkbox-secondary mt-0.5 disabled:opacity-50">
-                                                            <div class="flex-1 min-w-0">
-                                                                <div class="text-sm font-medium text-base-content truncate">
-                                                                    {{ $m['name'] }}
-                                                                </div>
-                                                                <div class="text-xs text-base-content/60 flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                                                    <span class="badge badge-sm {{ $m['role'] === 'fse' ? 'badge-warning' : 'badge-info' }} badge-outline">
-                                                                        @php
-                                                                            $roleFullName = match($m['role']) {
-                                                                                'fse' => 'Field Service Engineer',
-                                                                                'its' => 'IT Specialist',
-                                                                                default => strtoupper($m['role']),
-                                                                            };
-                                                                        @endphp
-                                                                        {{ $roleFullName }}{{ $m['team'] && str_contains($m['team'], 'Sr') ? ' · Sr' : '' }}
-                                                                    </span>
-                                                                    @if (! $m['assignable'])
-                                                                        <span class="text-base-content/40 italic">unavailable</span>
-                                                                    @endif
-                                                                </div>
-                                                            </div>
-                                                        </label>
-                                                    @endforeach
-                                                </div>
-                                            </div>
-                                        @endif
-                                    @endforeach
-                                </div>
-                            @endif
                         </div>
                     </div>
                 </x-ui.card>

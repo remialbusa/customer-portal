@@ -29,6 +29,16 @@
                 </x-ui.toast>
             @endif
 
+            @if ($errors->any())
+                <x-ui.toast type="error" title="Something went wrong">
+                    <ul class="list-disc list-inside space-y-0.5">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </x-ui.toast>
+            @endif
+
             @if(empty($user->monday_id))
                 <div role="alert" class="alert alert-warning shadow-sm">
                     <svg class="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
@@ -114,6 +124,75 @@
                 </div>
             @endif
 
+            {{-- ───── Available tickets (regional pool) ───── --}}
+            @if(!empty($unclaimedTickets))
+                <x-ui.card
+                    title="Available tickets in your region"
+                    subtitle="Claim a ticket to add it to your queue — it will also appear for other TSPs until claimed."
+                    padding="p-0"
+                >
+                    <x-slot:icon>
+                        <span aria-hidden="true" class="w-7 h-7 rounded-lg bg-warning/10 text-warning flex items-center justify-center shrink-0">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                        </span>
+                    </x-slot:icon>
+
+                    <ul role="list" class="divide-y divide-base-300/70">
+                        @foreach($unclaimedTickets as $t)
+                            @php
+                                $statusLower = strtolower((string) $t['status_text']);
+                                $statusConfig = match(true) {
+                                    str_contains($statusLower, 'new') || str_contains($statusLower, 'open')
+                                        => ['class' => 'badge-info',    'dot' => 'bg-info'],
+                                    str_contains($statusLower, 'progress')
+                                        => ['class' => 'badge-warning', 'dot' => 'bg-warning'],
+                                    default
+                                        => ['class' => 'badge-ghost',   'dot' => 'bg-base-content/40'],
+                                };
+                                $brand = $t['item']['column_values']['text_mm5apcrc']['text'] ?? null;
+                                $model = $t['item']['column_values']['text_mm5am2kf']['text'] ?? null;
+                            @endphp
+                            <li>
+                                <div class="flex items-center gap-3 px-4 py-3.5 hover:bg-base-200/60 transition group">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-[11px] font-mono text-base-content/50">#{{ $t['id'] }}</span>
+                                            <span class="badge {{ $statusConfig['class'] }} badge-sm gap-1 font-medium">
+                                                <span class="w-1.5 h-1.5 rounded-full {{ $statusConfig['dot'] }}"></span>
+                                                {{ $t['status_text'] ?? '—' }}
+                                            </span>
+                                            @if(!empty($t['customer_region']))
+                                                <span class="badge badge-outline badge-sm text-[10px]">{{ $t['customer_region'] }}</span>
+                                            @endif
+                                        </div>
+                                        <h3 class="text-sm font-semibold text-base-content truncate">
+                                            {{ $t['name'] }}
+                                        </h3>
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-base-content/60 mt-1">
+                                            @if($brand || $model)
+                                                <span class="inline-flex items-center gap-1">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                                                    {{ trim(($brand ?? '') . ' ' . (($brand && $model) ? '· ' : '') . ($model ?? '')) }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <form method="POST" action="{{ route('tsp.tickets.claim', $t['id']) }}" class="flex-shrink-0">
+                                        @csrf
+                                        <button type="submit"
+                                                class="btn btn-sm btn-primary gap-1"
+                                                onclick="return confirm('Claim ticket #{{ $t['id'] }}? It will be assigned to you.')">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                            Claim
+                                        </button>
+                                    </form>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ul>
+                </x-ui.card>
+            @endif
+
             {{-- ───── My Tickets card ───── --}}
             <x-ui.card
                 title="My tickets"
@@ -130,8 +209,8 @@
                     <div class="p-2">
                         <x-ui.empty-state
                             icon="📋"
-                            title="No tickets assigned yet"
-                            body="Once tickets are assigned to you in Monday.com, they'll show up here within 30 seconds."
+                            title="No tickets claimed yet"
+                            body="Check the available tickets pool above to claim one, or wait for new tickets to come in from your region."
                         />
                     </div>
                 @else

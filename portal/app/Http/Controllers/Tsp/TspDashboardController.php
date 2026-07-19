@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Tsp;
 
 use App\Http\Controllers\Controller;
 use App\Services\MondayClient;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Log;
 
 class TspDashboardController extends Controller
 {
@@ -64,10 +66,22 @@ class TspDashboardController extends Controller
             $stats['pending_sync'] = 0;
         }
 
+        // Unclaimed tickets in the TSP's region — the "pool" of
+        // tickets awaiting a field engineer to claim them.
+        $unclaimedTickets = [];
+        if (! empty($user->region)) {
+            try {
+                $unclaimedTickets = $monday->unclaimedTicketsForRegion($user->region);
+            } catch (\Throwable $e) {
+                $unclaimedTickets = [];
+            }
+        }
+
         return view('tsp.dashboard', [
-            'user'    => $user,
-            'tickets' => $tickets,
-            'stats'   => $stats,
+            'user'            => $user,
+            'tickets'         => $tickets,
+            'stats'           => $stats,
+            'unclaimedTickets'=> $unclaimedTickets,
         ]);
     }
 
@@ -85,5 +99,41 @@ class TspDashboardController extends Controller
             'user'  => auth()->user(),
             'ticket'=> $item,
         ]);
+    }
+
+    /**
+     * Claim an unclaimed ticket: write the TSP's person ID into the
+     * People column on Monday and flip the response status.
+     *
+     * This is a POST-only action (no GET). On success the TSP is
+     * redirected to the ticket detail page; on failure back to the
+     * dashboard with an error flash.
+     */
+    public function claim(string $id, MondayClient $monday): RedirectResponse
+    {
+        $user = auth()->user();
+
+        if (empty($user->monday_id)) {
+            return back()->withErrors([
+                'claim' => 'Your account is not linked to Monday.com. An admin needs to set your monday_id before you can claim tickets.',
+            ]);
+        }
+
+        try {
+            $monday->claimTicket((int) $id, (string) $user->monday_id);
+        } catch (\Throwable $e) {
+            Log::warning('TspDashboardController::claim failed', [
+                'ticket_id' => $id,
+                'user_id'   => $user->id,
+                'error'     => $e->getMessage(),
+            ]);
+            return back()->withErrors([
+                'claim' => 'Could not claim ticket — Monday.com returned an error. Please try again.',
+            ]);
+        }
+
+        return redirect()
+            ->route('tsp.tickets.show', $id)
+            ->with('status', "Ticket #{$id} claimed — it's now in your queue.");
     }
 }

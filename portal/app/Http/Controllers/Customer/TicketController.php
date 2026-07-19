@@ -4,11 +4,8 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Services\MondayClient;
-use App\Support\PersonnelDirectory;
-use App\Support\RegionResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -27,20 +24,10 @@ class TicketController extends Controller
             ->orderBy('brand')
             ->get();
 
-        // Resolve the customer's physical region so the TSP picker
-        // can be scoped to the team physically closest to them. Falls
-        // back to null when we can't tell where the customer is (e.g.
-        // a brand-new self-registered account that never filled in a
-        // branch or address) — in that case the picker shows all 4
-        // region groups so the customer can still pick someone.
-        $customerRegion = RegionResolver::resolveForCustomer($user);
-
         return view('customer.tickets.create', [
-            'user'            => $user,
-            'machines'        => $machines,
-            'requestTypes'    => ['Issue', 'Request'],
-            'tspDirectory'    => PersonnelDirectory::forCustomerAssignment($customerRegion),
-            'customerRegion'  => $customerRegion,
+            'user'         => $user,
+            'machines'     => $machines,
+            'requestTypes' => ['Issue', 'Request'],
         ]);
     }
 
@@ -49,9 +36,6 @@ class TicketController extends Controller
      */
     public function store(Request $request, MondayClient $monday): RedirectResponse
     {
-        // The TSP picker posts user[] ids (the local `users` table ids).
-        // We accept any number of integers; downstream resolveMondayPersonIds()
-        // will reject any that don't have a monday_id populated.
         $data = $request->validate([
             'subject'              => ['required', 'string', 'max:255'],
             'description'          => ['required', 'string', 'max:5000'],
@@ -60,8 +44,6 @@ class TicketController extends Controller
             'brand'                => ['nullable', 'string', 'max:120'],
             'model'                => ['nullable', 'string', 'max:120'],
             'serial'               => ['nullable', 'string', 'max:120'],
-            'assigned_tsp_ids'     => ['nullable', 'array', 'max:10'],
-            'assigned_tsp_ids.*'   => ['integer', 'exists:users,id'],
         ]);
 
         $user = $request->user();
@@ -149,8 +131,9 @@ class TicketController extends Controller
             $user->forceFill(['monday_id' => $customerItemId])->save();
         }
 
-        $tspPersonIds = $this->resolveTspPersonIds($data['assigned_tsp_ids'] ?? []);
-
+        // TSPs are no longer assigned at ticket creation. The ticket
+        // enters the regional pool and field engineers claim it from
+        // their dashboard. The People column stays empty.
         $result = $monday->createTicket([
             'name'            => $data['subject'],
             'description'     => $data['description'],
@@ -160,7 +143,6 @@ class TicketController extends Controller
             'brand'           => $brand,
             'model'           => $model,
             'serial'          => $serial,
-            'tsp_person_ids'  => $tspPersonIds,
         ]);
 
         if (empty($result['id'])) {
@@ -169,54 +151,12 @@ class TicketController extends Controller
                 ->withErrors(['monday' => 'Monday.com did not return a ticket id. Please try again or contact support.']);
         }
 
-        // Flip RESPONSE STATUS to "RESPONDED" once the ticket is created
-        // AND at least one TSP is actually assigned (the People column
-        // ends up non-empty). The "no preference" path leaves the column
-        // at "NOT YET" so the status accurately reflects whether a
-        // specific TSP was picked.
-        //
-        // Best-effort: a failure here must NOT block the redirect. The
-        // customer has successfully submitted the ticket — losing the
-        // status update is recoverable, but losing the redirect is a
-        // confusing 500. markTicketResponded() also internally guards
-        // against a missing config entry.
-        if (! empty($tspPersonIds)) {
-            try {
-                $monday->markTicketResponded((int) $result['id']);
-            } catch (\Throwable $e) {
-                Log::warning('TicketController: markTicketResponded failed', [
-                    'ticket_id' => $result['id'],
-                    'error'     => $e->getMessage(),
-                ]);
-            }
-        }
+        // Response status stays "NOT YET" — it flips to "RESPONDED"
+        // when a TSP claims the ticket from the dashboard.
 
         return redirect()
             ->route('dashboard')
             ->with('status', "Ticket #{$result['id']} submitted — our team has been notified.");
     }
 
-    /**
-     * Translate the local user ids the customer checked on the form into
-     * the Monday person ids we need to populate the TSP People column.
-     *
-     * Returns an empty array if the customer didn't pick anyone (the
-     * "No preference" / blank form is a valid submission). Throws
-     * InvalidArgumentException if any of the selected ids doesn't have
-     * a monday_id — that condition is treated as a validation error
-     * because the picker should have disabled those checkboxes, so
-     * seeing one in the payload means a stale form was submitted.
-     */
-    private function resolveTspPersonIds(array $userIds): array
-    {
-        $userIds = array_values(array_filter(
-            array_map('intval', $userIds),
-            static fn (int $id) => $id > 0
-        ));
-        if (empty($userIds)) {
-            return [];
-        }
-
-        return PersonnelDirectory::resolveMondayPersonIds($userIds);
-    }
 }

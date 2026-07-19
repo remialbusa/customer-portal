@@ -291,6 +291,96 @@ class MondayClient
     }
 
     /**
+     * Return open tickets that have NO TSP assigned (People column empty).
+     *
+     * This is the "regional pool" — tickets awaiting a field engineer
+     * to claim them. Each ticket is annotated with a customer_region
+     * field resolved from the local users table (matched by the
+     * ticket's email column) so the dashboard can filter by region.
+     */
+    public function unclaimedTickets(): array
+    {
+        return array_values(array_filter(
+            $this->listTickets(),
+            static function (array $t): bool {
+                // Must be open
+                if (! $t['is_open']) {
+                    return false;
+                }
+                // People column must be empty (no TSP assigned)
+                if (! empty($t['tsp_person_ids'])) {
+                    return false;
+                }
+                return true;
+            }
+        ));
+    }
+
+    /**
+     * Open tickets whose People column is empty, annotated with the
+     * customer's region from the local users table (matched by the
+     * ticket's email column). Used by the TSP dashboard to show the
+     * regional pool filtered to the TSP's own region.
+     *
+     * @return array<int, array> tickets with 'customer_region' added
+     */
+    public function unclaimedTicketsForRegion(string $regionCode): array
+    {
+        $pool = $this->unclaimedTickets();
+
+        // Resolve region for each ticket from the local users table
+        $regionMap = [];
+        $emails = array_filter(array_map(
+            static fn (array $t) => $t['item']['column_values']['email']['text'] ?? null,
+            $pool
+        ));
+        if (! empty($emails)) {
+            $users = \App\Models\User::whereIn('email', array_map('strtolower', $emails))
+                ->where('role', 'customer')
+                ->pluck('region', 'email');
+            foreach ($users as $email => $region) {
+                $regionMap[strtolower($email)] = $region;
+            }
+        }
+
+        $result = [];
+        foreach ($pool as $t) {
+            $email = strtolower(trim($t['item']['column_values']['email']['text'] ?? ''));
+            $t['customer_region'] = $regionMap[$email] ?? null;
+            if ($t['customer_region'] === $regionCode) {
+                $result[] = $t;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Claim a ticket for a TSP: writes their person ID into the People
+     * column and flips response_status to "RESPONDED".
+     *
+     * This is the core mutation for the self-claim flow. The TSP's
+     * local user record must have a monday_id (person ID on Monday).
+     */
+    public function claimTicket(int $ticketItemId, string $mondayPersonId): void
+    {
+        $boardId = (int) config('services.monday.tickets_board_id');
+        $tspCol  = (string) config('services.monday.tickets_columns.tsp');
+
+        // Write the person into the People column
+        $this->changeColumnValues($boardId, $ticketItemId, [
+            $tspCol => json_encode([
+                'personsAndTeams' => [
+                    ['id' => (int) $mondayPersonId, 'kind' => 'person'],
+                ],
+            ]),
+        ]);
+
+        // Flip response status
+        $this->markTicketResponded($ticketItemId);
+    }
+
+    /**
      * Tickets belonging to a specific customer (matched by email).
      *
      * The Tickets board has a free-text "email" column (and a board-relation

@@ -38,6 +38,12 @@ Route::middleware(['auth', 'role:fse,its,manager,admin'])->prefix('tsp')->name('
     Route::get('/dashboard', [TspDashboardController::class, 'index'])
         ->name('dashboard');
 
+    // Claim an unclaimed ticket from the regional pool. The TSP's
+    // person ID is written into the People column on Monday and
+    // the response status is flipped to "RESPONDED".
+    Route::post('/tickets/{id}/claim', [TspDashboardController::class, 'claim'])
+        ->name('tickets.claim');
+
     // Ticket detail + chat + internal notes (Phase 4).
     // Phase 3's TspChatController@show has been replaced by
     // TspInternalNoteController@show which renders both surfaces.
