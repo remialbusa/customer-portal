@@ -1,9 +1,9 @@
-import defaultTheme from 'tailwindcss/defaultTheme.js';
-import forms from '@tailwindcss/forms';
-import daisyui from 'daisyui';
+const defaultTheme = require('tailwindcss/defaultTheme');
+const forms = require('@tailwindcss/forms');
+const daisyui = require('daisyui');
 
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',

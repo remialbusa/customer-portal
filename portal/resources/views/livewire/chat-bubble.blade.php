@@ -9,6 +9,19 @@ new class extends Component
     public string $currentUserRole;
     public array  $messages = [];
 
+    // Canonical "this ticket is in a terminal state" boolean.
+    // When true, the input is disabled, the send button is
+    // disabled, and a "Ticket is closed" notice replaces the
+    // form. The server-side `Customer/ChatController::send()`
+    // and `Tsp/ChatController::send()` actions also refuse
+    // messages on closed tickets — this prop is purely a UX
+    // affordance for the chat-bubble itself. The Pusher
+    // `ticket.status.changed` event flips this client-side via
+    // the customer-ticket-banner factory if the status changes
+    // mid-session, so the disabled state stays in sync without
+    // a page reload.
+    public bool $isClosed = false;
+
     // Body for the send form. Lives on this component (the bubble
     // owns the input), not on the inner `chatPanel` Alpine factory.
     public string $body = '';
@@ -18,15 +31,26 @@ new class extends Component
         string $currentUserName,
         string $currentUserRole,
         array $messages = [],
+        bool $isClosed = false,
     ): void {
         $this->ticketId        = $ticketId;
         $this->currentUserName = $currentUserName;
         $this->currentUserRole = $currentUserRole;
         $this->messages        = $messages;
+        $this->isClosed        = $isClosed;
     }
 
     public function send(): void
     {
+        // Defense in depth — even if the form is rendered with
+        // the input/button disabled, a stale tab or a hand-crafted
+        // POST could still hit this method. Bail out so the user
+        // never sees a successful send on a closed ticket.
+        if ($this->isClosed) {
+            $this->skipRender();
+            return;
+        }
+
         $body = trim($this->body);
         if ($body === '') {
             return;
@@ -209,23 +233,43 @@ new class extends Component
                     </div>
                 @endforelse
             </div>
-            <form wire:submit.prevent="send" class="border-t border-base-300/70 px-2 py-2 flex gap-1.5 flex-shrink-0">
-                <input
-                    type="text"
-                    wire:model="body"
-                    placeholder="Type a message…"
-                    maxlength="2000"
-                    autocomplete="off"
-                    class="input input-bordered input-sm flex-1 focus:outline-none focus:border-primary"
+            {{-- Chat input row.
+                 When the ticket is closed (`$isClosed` is true) the
+                 form is replaced with a "Ticket is closed" notice so
+                 the customer understands why the input is missing.
+                 The form is also rendered with `wire:submit.prevent`
+                 and a `disabled` flag, and the Livewire `send()`
+                 method short-circuits if `isClosed` is true. --}}
+            @if ($isClosed)
+                <div
+                    role="status"
+                    data-test="chat-closed-notice"
+                    class="border-t border-base-300/70 px-3 py-2.5 flex items-center gap-2 text-xs text-base-content/70 bg-base-200/40 flex-shrink-0"
                 >
-                <button
-                    type="submit"
-                    wire:loading.attr="disabled"
-                    class="btn btn-primary btn-sm"
-                >
-                    Send
-                </button>
-            </form>
+                    <svg class="w-4 h-4 shrink-0 text-base-content/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                    <span>This ticket is closed. Chat is read-only.</span>
+                </div>
+            @else
+                <form wire:submit.prevent="send" class="border-t border-base-300/70 px-2 py-2 flex gap-1.5 flex-shrink-0">
+                    <input
+                        type="text"
+                        wire:model="body"
+                        placeholder="Type a message…"
+                        maxlength="2000"
+                        autocomplete="off"
+                        class="input input-bordered input-sm flex-1 focus:outline-none focus:border-primary"
+                    >
+                    <button
+                        type="submit"
+                        wire:loading.attr="disabled"
+                        class="btn btn-primary btn-sm"
+                    >
+                        Send
+                    </button>
+                </form>
+            @endif
         </div>
     </div>
 

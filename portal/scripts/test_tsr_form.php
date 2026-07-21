@@ -86,7 +86,7 @@ echo "\n── 2. Form render (mount with ticket number) ──\n";
 $test = Livewire::test(CreateServiceReport::class, ['ticketNumber' => '2749008227'])
     ->assertSet('ticketNumber', '2749008227')
     ->assertSet('email', 'remial.busa@mcbtsi.com')
-    ->assertSet('serviceStatus', 'open');
+    ->assertSet('serviceStatus', 'in_progress');
 $html = $test->html();
 check('Ticket # label visible',         str_contains($html, 'Ticket #'),                                                $pass, $fail);
 check('Ticket number value visible',    str_contains($html, '2749008227'),                                             $pass, $fail);
@@ -137,7 +137,14 @@ $valid->set('email', 'remial.busa@mcbtsi.com')
       ->set('biomedEmail', 'tan@hospital.test')
       ->set('biomedSignatureDataUrl', testSignaturePng())
       ->set('tspWorkWithCsv', '77787515, 77787561')
-      ->call('submit', app(SubmitServiceReport::class));
+      // Disable the immediate-drain-to-Monday that the action
+      // would do in production — the test ticket 2749008227 is a
+      // fake number, so the drainer would either fail (marking
+      // the row Error) or talk to real Monday. Either way it
+      // would change sync_state away from 'pending' and break
+      // the assertions below. The offline drainer pipeline is
+      // covered separately by tests 5–7.
+      ->call('submit', tap(app(SubmitServiceReport::class), fn ($a) => $a->syncAfterCommit = false));
 
 $row = ServiceReport::where('local_id', $localId)->first();
 check('Row created in DB', $row !== null, $pass, $fail);
@@ -180,7 +187,10 @@ $valid2->set('localId', $localId)
        ->set('biomedName', 'Eng. Tan')
        ->set('biomedEmail', 'tan@hospital.test')
        ->set('biomedSignatureDataUrl', testSignaturePng())
-       ->call('submit', app(SubmitServiceReport::class));
+       // Disable immediate-drain for the same reason as section 4:
+       // the test ticket is fake, and section 6's badge assertion
+       // depends on the row staying in 'pending' state.
+       ->call('submit', tap(app(SubmitServiceReport::class), fn ($a) => $a->syncAfterCommit = false));
 
 $count = ServiceReport::where('local_id', $localId)->count();
 check('Same local_id does not create a duplicate row', $count === 1, $pass, $fail);

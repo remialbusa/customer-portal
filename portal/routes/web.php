@@ -100,6 +100,15 @@ Route::middleware(['auth', 'role:fse,its,manager,admin'])->prefix('tsp')->name('
     // bar to display "Queued / Syncing / Synced / Error" pills).
     Route::get('/tickets/{id}/tsr/status', [\App\Http\Controllers\Tsp\ServiceReportController::class, 'status'])
         ->name('tickets.tsr.status');
+
+    // Lightweight JSON snapshot of a ticket's status, subject,
+    // and TSR presence. Polled by the ticket-show page's Alpine
+    // poller every 15s so a status change made by another tab
+    // (manager, customer, or a co-TSP) shows up without a hard
+    // reload. The controller authorizes access the same way
+    // tickets.show does.
+    Route::get('/tickets/{id}/status.json', [TspInternalNoteController::class, 'statusJson'])
+        ->name('tickets.status');
 });
 
 // Admin / executive routes. The outer group accepts either `admin`

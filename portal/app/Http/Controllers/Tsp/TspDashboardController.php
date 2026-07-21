@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Tsp;
 
+use App\Events\TicketClaimed;
 use App\Http\Controllers\Controller;
 use App\Services\MondayClient;
 use Illuminate\Http\RedirectResponse;
@@ -10,78 +11,17 @@ use Illuminate\Support\Facades\Log;
 
 class TspDashboardController extends Controller
 {
-    public function index(MondayClient $monday): View
+    /**
+     * Render the Livewire TSP dashboard. The view lives in
+     * resources/views/livewire/tsp/dashboard.blade.php; this
+     * controller just delegates the initial render. All claim
+     * interactions happen client-side via `wire:click` so the
+     * page never navigates away.
+     */
+    public function index(MondayClient $monday): \Illuminate\Contracts\View\View
     {
-        $user = auth()->user();
-
-        // Counters — mirrors the customer dashboard: total / open /
-        // in-progress / resolved. `total` is the same as the legacy
-        // `assignedCount` (everything assigned to me), kept under the
-        // `total` key so the view stays symmetrical with the customer
-        // side. `pending_sync` is a TSP-only stat: how many service
-        // reports I have filed that are still waiting to drain to
-        // Monday.com. The view shows a 5th card when it's > 0.
-        $stats = [
-            'total'        => 0,
-            'open'         => 0,
-            'in_progress'  => 0,
-            'resolved'     => 0,
-            'pending_sync' => 0,
-        ];
-        $tickets = [];
-
-        if (! empty($user->monday_id)) {
-            $tickets = $monday->ticketsForTsp((string) $user->monday_id);
-
-            foreach ($tickets as $t) {
-                $stats['total']++;
-                $status = strtolower((string) $t['status_text']);
-                if ($status === '') {
-                    continue;
-                }
-                if (in_array($status, ['resolved', 'closed', 'done', 'complete'], true)) {
-                    $stats['resolved']++;
-                } else {
-                    $stats['open']++;
-                }
-                if (str_contains($status, 'progress')) {
-                    $stats['in_progress']++;
-                }
-            }
-        }
-
-        // Pending-sync counter: count distinct service reports this
-        // TSP has filed that are not yet mirrored to Monday. We
-        // query the local DB so this works even when Monday is
-        // unreachable. Tsp\Tickets\PendingSyncBadge does the same
-        // query live on the page; we do a snapshot here for the
-        // dashboard's stats panel.
-        try {
-            $stats['pending_sync'] = \App\Models\ServiceReport::query()
-                ->where('user_id', $user->id)
-                ->where('sync_state', '!=', \App\Enums\SyncState::Synced->value)
-                ->count();
-        } catch (\Throwable $e) {
-            // Table might not exist on a fresh install — leave at 0.
-            $stats['pending_sync'] = 0;
-        }
-
-        // Unclaimed tickets in the TSP's region — the "pool" of
-        // tickets awaiting a field engineer to claim them.
-        $unclaimedTickets = [];
-        if (! empty($user->region)) {
-            try {
-                $unclaimedTickets = $monday->unclaimedTicketsForRegion($user->region);
-            } catch (\Throwable $e) {
-                $unclaimedTickets = [];
-            }
-        }
-
         return view('tsp.dashboard', [
-            'user'            => $user,
-            'tickets'         => $tickets,
-            'stats'           => $stats,
-            'unclaimedTickets'=> $unclaimedTickets,
+            'user' => auth()->user(),
         ]);
     }
 
@@ -95,9 +35,39 @@ class TspDashboardController extends Controller
 
         abort_if(! $item, 404, "Ticket {$id} not found in Monday.com.");
 
+        // Resolve the assigned TSP(s) from the People column.
+        // `$item['column_values'][people_col]['value']` is JSON with
+        // shape {"personsAndTeams": [{"id": 12345, ...}, ...]} when
+        // the column is populated. We pull the ids, then ask the
+        // local User table for the matching names.
+        $tspIds = [];
+        $peopleCol = config('services.monday.tickets_columns.tsp');
+        $peopleValue = $item['column_values'][$peopleCol]['value'] ?? null;
+        if ($peopleValue) {
+            $decoded = json_decode($peopleValue, true);
+            if (is_array($decoded) && isset($decoded['personsAndTeams'])) {
+                foreach ($decoded['personsAndTeams'] as $row) {
+                    if (isset($row['id'])) {
+                        $tspIds[] = (string) $row['id'];
+                    }
+                }
+            }
+        }
+        $tspNameMap = MondayClient::resolveTspNames($tspIds);
+        $assignedNames = [];
+        foreach ($tspIds as $pid) {
+            $name = $tspNameMap[$pid] ?? null;
+            if ($name) {
+                $assignedNames[] = $name;
+            } else {
+                $assignedNames[] = 'TSP #' . $pid;
+            }
+        }
+
         return view('tsp.ticket-show', [
-            'user'  => auth()->user(),
-            'ticket'=> $item,
+            'user'           => auth()->user(),
+            'ticket'         => $item,
+            'assignedNames'  => $assignedNames,
         ]);
     }
 
@@ -129,6 +99,28 @@ class TspDashboardController extends Controller
             ]);
             return back()->withErrors([
                 'claim' => 'Could not claim ticket — Monday.com returned an error. Please try again.',
+            ]);
+        }
+
+        // Broadcast the claim on the customer-side channel so the
+        // ticket's customer sees the assignment the moment it
+        // happens (without waiting for the 15s ticket page poll).
+        // Also broadcast on the region-wide channel so any other
+        // TSPs viewing the same regional pool see the ticket leave
+        // the available list in real-time.
+        try {
+            broadcast(new TicketClaimed(
+                mondayTicketId: (string) $id,
+                tspName:        (string) $user->name,
+                tspRole:        (string) $user->role,
+                previousStatus: 'NOT YET',
+                newStatus:      'RESPONDED',
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('TicketClaimed broadcast failed', [
+                'ticket_id' => $id,
+                'user_id'   => $user->id,
+                'error'     => $e->getMessage(),
             ]);
         }
 

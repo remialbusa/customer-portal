@@ -107,4 +107,17 @@ class User extends Authenticatable
     {
         return $this->hasMany(ServiceReport::class);
     }
+
+    /**
+     * All machines registered to this user (as a customer). The
+     * customer profile's "My machines" form and the new-ticket
+     * equipment picker both read from this relation. Ordered
+     * primary-first, then most-recently-updated.
+     */
+    public function machines(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Machine::class)
+            ->orderByDesc('is_primary')
+            ->orderByDesc('updated_at');
+    }
 }

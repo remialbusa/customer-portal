@@ -11,10 +11,11 @@
         <link rel="icon" type="image/svg+xml" href="{{ asset('images/brand/favicon.svg') }}">
 
         {{-- Fonts: Inter (UI) + Plus Jakarta Sans (display) --}}
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" rel="stylesheet" />
+        <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+        <link rel="preload" href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" as="style" onload="this.rel='stylesheet'">
+        <noscript><link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" rel="stylesheet"></noscript>
 
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/guest.js'])
     </head>
     <body class="font-sans antialiased text-brand-slate bg-brand-cream h-full">
 

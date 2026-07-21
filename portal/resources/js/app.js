@@ -14,5 +14,7 @@ import './internal-notes-panel.js';
 import './time-tracker.js';
 import './service-report-form.js';
 import './ticket-status-banner.js';
+import './realtime-dashboard.js';
+import './customer-ticket-banner.js';
 
 window.echo = getEcho;

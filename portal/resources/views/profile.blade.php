@@ -20,6 +20,15 @@
                 <livewire:profile.update-password-form />
             </div>
 
+            @if (auth()->user()->isCustomer())
+                {{-- Customer-only: register / edit / remove the
+                     equipment they have on file so the new-ticket
+                     form can pre-fill brand, model, and serial. --}}
+                <div class="max-w-3xl">
+                    <livewire:profile.manage-machines-form />
+                </div>
+            @endif
+
             <div class="max-w-xl">
                 @if (auth()->user()->isSuperAdmin())
                     {{-- Superadmins can self-delete directly. --}}

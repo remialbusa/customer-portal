@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Events\TicketCreated;
 use App\Http\Controllers\Controller;
 use App\Services\MondayClient;
 use Illuminate\Http\RedirectResponse;
@@ -153,6 +154,38 @@ class TicketController extends Controller
 
         // Response status stays "NOT YET" — it flips to "RESPONDED"
         // when a TSP claims the ticket from the dashboard.
+
+        // Broadcast on the region-scoped private channel so TSPs in
+        // the same region see the new ticket appear in their
+        // Available pool without waiting for the 20s poll. Also
+        // broadcast on the catch-all `region.all` so admins see it
+        // too. The channel callback (routes/channels.php) authorises
+        // each role: TSPs whose `users.region` (or `branch`, via
+        // RegionResolver) matches the ticket's region, plus all
+        // admins. Customers are explicitly denied.
+        try {
+            // Resolve the customer's region via RegionResolver so the
+            // broadcast is region-accurate even when `users.region`
+            // is null (older accounts only have a free-text `branch`
+            // or `address` we can match against the keyword list).
+            $regionCode = \App\Support\RegionResolver::resolveForCustomer($user);
+            broadcast(new TicketCreated(
+                mondayTicketId: (string) $result['id'],
+                regionCode:     $regionCode,
+                subject:        $data['subject'],
+                brand:          $brand,
+                model:          $model,
+                requestType:    $data['request_type'],
+            ));
+        } catch (\Throwable $e) {
+            // Never fail the request because of a broadcast hiccup —
+            // the TSP dashboard will pick up the new ticket on the
+            // next 20s poll. Just log so we know if Pusher is acting up.
+            \Illuminate\Support\Facades\Log::warning('TicketCreated broadcast failed', [
+                'ticket_id' => $result['id'] ?? null,
+                'error'     => $e->getMessage(),
+            ]);
+        }
 
         return redirect()
             ->route('dashboard')

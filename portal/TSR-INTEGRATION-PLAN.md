@@ -115,7 +115,7 @@ following rule:
 | IN-PROGRESS | Working on it          | |
 | PENDING     | Waiting for parts      | |
 | ESCALATED   | Escalated              | also pages the on-call team |
-| COMPLETED   | Resolved               | triggers PDF + customer update |
+| COMPLETED   | COMPLETED              | triggers PDF + customer update |
 
 Implemented in `App\Support\Monday\TsrStatusMapper`.
 

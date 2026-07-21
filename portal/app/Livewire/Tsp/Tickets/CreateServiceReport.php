@@ -7,6 +7,7 @@ namespace App\Livewire\Tsp\Tickets;
 use App\Actions\SubmitServiceReport;
 use App\Enums\ServiceStatus;
 use App\Http\Requests\StoreServiceReportRequest;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -36,8 +37,10 @@ class CreateServiceReport extends Component
     /** Local id the form was mounted with — sticky across saves. */
     public string $localId = '';
 
-    // Form state -- mirrors StoreServiceReportRequest rules()
-    public string $serviceStatus = 'open';
+    // Form state -- mirrors StoreServiceReportRequest rules().
+    // The actual default is set in mount(); 'in_progress' so a
+    // successful TSR submit auto-flips the source ticket on Monday.
+    public string $serviceStatus = 'in_progress';
     public string $email = '';
     public string $problemAndConcerns = '';
     public string $jobDone = '';
@@ -67,6 +70,12 @@ class CreateServiceReport extends Component
     /** CSV input from the form, getter/setter maps to $tspWorkWith. */
     public string $tspWorkWithCsv = '';
 
+    /** @var array<int, array{id: int, name: string, monday_id: string, role: string}> Available TSPs for team selection. */
+    public array $availableTsps = [];
+
+    /** Server-side search term for the TSP dropdown. */
+    public string $tspSearch = '';
+
     // Computed
     public int $totalMinutes = 0;
     public ?string $lastSyncedAt = null;
@@ -83,7 +92,39 @@ class CreateServiceReport extends Component
         $this->localId = request()->header('X-TSR-Local-Id')
             ?: (string) \Illuminate\Support\Str::uuid();
 
-        $this->serviceStatus = ServiceStatus::Open->value;
+        // Default to "in_progress" so submitting a TSR auto-flips the
+        // source ticket on Monday to "Working on it" (per the
+        // service_status_to_ticket_status map in config/services.php).
+        // The previous default of "open" was a no-op on the ticket
+        // status side, which made "I submitted a TSR but the ticket
+        // status didn't change on Monday" a common complaint during
+        // manual testing. TSPs can still pick any other status from
+        // the pill picker.
+        $this->serviceStatus = ServiceStatus::InProgress->value;
+
+        // Load available TSPs who have a monday_id.
+        // FSE: all with role=fse (from Personnel list).
+        // ITS: only those with team IN ('ITS','ITS-Sr') — the real IT
+        //      Specialists from the Personnel list, not the ~140
+        //      office/admin ITS users with team=null.
+        $this->availableTsps = User::where(function ($q) {
+                $q->where('role', 'fse')
+                  ->orWhere(function ($q2) {
+                      $q2->where('role', 'its')
+                         ->whereIn('team', ['ITS', 'ITS-Sr']);
+                  });
+            })
+            ->whereNotNull('monday_id')
+            ->select('id', 'name', 'monday_id', 'role')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($u) => [
+                'id'        => $u->id,
+                'name'      => $u->name,
+                'monday_id' => (string) $u->monday_id,
+                'role'      => $u->role,
+            ])
+            ->toArray();
     }
 
     public function updatedServiceStartDateTime(): void
@@ -98,10 +139,38 @@ class CreateServiceReport extends Component
 
     public function updatedTspWorkWithCsv(): void
     {
-        $this->tspWorkWith = array_values(array_filter(array_map(
+        $this->tspWorkWith = array_values(array_unique(array_filter(array_map(
             'trim',
             explode(',', $this->tspWorkWithCsv)
-        )));
+        ))));
+    }
+
+    /**
+     * Toggle a TSP in/out of the team members list by their monday_id.
+     * Called from the Blade multi-select UI.
+     */
+    public function toggleTsp(string $mondayId): void
+    {
+        $idx = array_search($mondayId, $this->tspWorkWith);
+        if ($idx !== false) {
+            unset($this->tspWorkWith[$idx]);
+            $this->tspWorkWith = array_values($this->tspWorkWith);
+        } else {
+            $this->tspWorkWith[] = $mondayId;
+        }
+        $this->tspWorkWithCsv = implode(', ', $this->tspWorkWith);
+    }
+
+    /**
+     * Remove a single TSP from the team members list.
+     */
+    public function removeTsp(string $mondayId): void
+    {
+        $this->tspWorkWith = array_values(array_filter(
+            $this->tspWorkWith,
+            fn ($id) => $id !== $mondayId
+        ));
+        $this->tspWorkWithCsv = implode(', ', $this->tspWorkWith);
     }
 
     protected function recomputeTotalMinutes(): void
@@ -151,6 +220,20 @@ class CreateServiceReport extends Component
             $this->lastSyncedAt = now()->toIso8601String();
             session()->flash('tsr.saved', true);
 
+            // Close the Breeze modal that hosts this form. Breeze's
+            // <x-modal> listens on `close-modal` window events whose
+            // `$event.detail` equals the modal's `name`. The parent
+            // ticket-show view renders the modal as
+            // `tsr-create-{monday_ticket_id}` — see resources/views
+            // /tsp/ticket-show.blade.php. Without this dispatch the
+            // modal stayed open with a "Report saved!" banner inside
+            // it, which felt like nothing had happened.
+            $this->dispatch('close-modal', 'tsr-create-' . $this->ticketNumber);
+
+            // Bubble a parent-page event so the page-level Alpine
+            // poller can flip `hasReport` to true and swap the
+            // "Create service report" button for a "View TSR" link
+            // without waiting for the next 15s status poll.
             $this->dispatch('tsr.saved', localId: $this->localId);
         } catch (\Illuminate\Validation\ValidationException $e) {
             $this->lastError = collect($e->errors())->flatten()->implode(' / ');

@@ -12,6 +12,7 @@ use App\Services\SignatureStorage;
 use App\Support\Monday\TsrStatusMapper;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Single entry point for a TSP submitting a TSR. Idempotent on
@@ -24,21 +25,50 @@ use Illuminate\Support\Facades\Log;
  *   4. Compute the ticket-side status change via TsrStatusMapper.
  *      (Actual monday write is queued; see SyncPendingTsrReports.)
  *   5. Set sync_state = 'pending' so the drainer picks it up.
+ *   6. After the local row is committed, drain the just-saved row
+ *      to monday.com so the source ticket's status flips in the
+ *      same user-facing action (no more "I saved the TSR but the
+ *      ticket is still 'Working on it' on Monday" surprise). If the
+ *      drain fails the row stays in 'pending'/'error' for the next
+ *      drainer cycle (browser `online` event, 5-min cron, manual
+ *      "Sync to Monday" button).
  *
- * No monday.com write happens here. The portal's local DB is the
- * authoritative record at submit time; the drainer (next file) is
- * the one that talks to monday.
+ * No monday.com write happens *inside* the transaction. The drainer
+ * runs *after* commit so the row is visible to its own query and a
+ * failed drain never rolls back the local write — the portal's
+ * local DB is the authoritative record at submit time.
  */
 class SubmitServiceReport
 {
+    /**
+     * When true, the action will attempt an inline monday.com
+     * drain of the just-saved row BEFORE returning. Defaults
+     * to false because the inline path takes 1.5–3s (3-6 HTTP
+     * calls to api.monday.com) and makes the "TSR saved" toast
+     * feel sluggish — the user is staring at a spinner.
+     *
+     * With the default (false), the row is saved locally in
+     * 'pending' state and the next call to
+     * `ServiceReportController::status()` — which the form
+     * polls every 5s — will opportunistically drain it. The
+     * sticky-bar "Sync to Monday" button and the offline-queue
+     * `online` event also call the drainer directly, so
+     * recovery on flaky networks is automatic.
+     *
+     * Tests that want the inline path can opt in by setting
+     * this to true before calling execute().
+     */
+    public bool $syncAfterCommit = false;
+
     public function __construct(
         protected SignatureStorage $signatures,
+        protected SyncPendingTsrReports $drainer,
     ) {
     }
 
     public function execute(User $tsp, TsrSubmissionDto $dto): ServiceReport
     {
-        return DB::transaction(function () use ($tsp, $dto) {
+        $report = DB::transaction(function () use ($tsp, $dto) {
             // Phase 1: idempotent row
             $report = ServiceReport::firstOrNew(['local_id' => $dto->localId]);
 
@@ -97,5 +127,27 @@ class SubmitServiceReport
 
             return $report;
         });
+
+        // Phase 5 (deferred): the drainer runs on the next status
+        // poll (every 5s) or manual "Sync to Monday" click, not
+        // inline. The flag is honored for backwards compat with
+        // tests that opt in to the inline path. The inline path
+        // is still slow but at least it works end-to-end.
+        if ($this->syncAfterCommit && $this->drainer !== null) {
+            try {
+                $stats = $this->drainer->syncOneRow($report);
+                if (($stats['succeeded'] ?? 0) > 0) {
+                    $report->refresh();
+                }
+            } catch (Throwable $e) {
+                Log::warning('TSR immediate drain failed; will retry on next cycle', [
+                    'local_id' => $dto->localId,
+                    'ticket'   => $dto->ticketNumber,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $report;
     }
 }

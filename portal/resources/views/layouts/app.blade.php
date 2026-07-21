@@ -8,8 +8,9 @@
         <title>{{ config('app.name', 'Laravel') }} — BioTechnical Solutions</title>
 
         {{-- Fonts: Inter for UI, Plus Jakarta Sans for display --}}
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+        <link rel="preload" href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" as="style" onload="this.rel='stylesheet'">
+        <noscript><link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" rel="stylesheet"></noscript>
 
         {{-- Bootstrap CDN removed 2026-07-18: DaisyUI is now the single
              component system (see tailwind.config.js daisyui.theme 'mcbio').

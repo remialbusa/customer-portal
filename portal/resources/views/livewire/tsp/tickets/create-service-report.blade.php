@@ -28,7 +28,7 @@
         'escalated'   => ['tone' => 'error',   'dot' => 'bg-error',           'label' => 'Escalated'],
         'completed'   => ['tone' => 'success', 'dot' => 'bg-success',         'label' => 'Completed'],
     ];
-    $currentTone = $statusTones[$serviceStatus] ?? $statusTones['open'];
+    $currentTone = $statusTones[$serviceStatus] ?? $statusTones['in_progress'];
 
     // Friendly duration ("3h 15m" / "45m" / "0m").
     $duration = $totalMinutes > 0
@@ -90,6 +90,20 @@
             <span class="w-1.5 h-1.5 rounded-full" :class="online ? 'bg-success' : 'bg-warning'"></span>
             <span x-text="online ? 'Online' : 'Offline'">Online</span>
         </span>
+        {{-- Manual "Save draft" — explicit, discoverable way to save
+             without submitting. Lives in the top header so it sits
+             inside the x-data scope (the bottom sticky bar is
+             re-parented out of the form by Livewire's morph, so its
+             Alpine directives don't resolve). --}}
+        <button
+            type="button"
+            class="btn btn-ghost btn-sm gap-1.5"
+            @click="saveDraftManual()"
+            :title="draftSavedAt ? 'Draft saved just now' : 'Save your progress as a draft on this device'"
+        >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span x-text="draftSavedAt ? 'Saved ✓' : 'Save draft'"></span>
+        </button>
     </div>
 
     {{-- ───────────────────── Stepper ───────────────────── --}}
@@ -226,7 +240,15 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <label class="form-control w-full">
-                            <div class="label py-1"><span class="label-text text-sm font-medium">Arrival time <span class="text-error">*</span></span></div>
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Login time <span class="text-[10px] font-normal text-base-content/50 ml-1">on-site sign-in</span></span></div>
+                            <input
+                                type="datetime-local"
+                                wire:model.live="logInDate"
+                                class="input input-bordered input-sm w-full"
+                            />
+                        </label>
+                        <label class="form-control w-full">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Service start <span class="text-error">*</span><span class="text-[10px] font-normal text-base-content/50 ml-1">arrival at the equipment</span></span></div>
                             <input
                                 type="datetime-local"
                                 wire:model.live="serviceStartDateTime"
@@ -235,7 +257,7 @@
                             />
                         </label>
                         <label class="form-control w-full">
-                            <div class="label py-1"><span class="label-text text-sm font-medium">Departure time <span class="text-error">*</span></span></div>
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Service end <span class="text-error">*</span><span class="text-[10px] font-normal text-base-content/50 ml-1">work completed</span></span></div>
                             <input
                                 type="datetime-local"
                                 wire:model.live="serviceEndDateTime"
@@ -243,23 +265,21 @@
                                 required
                             />
                         </label>
+                        <label class="form-control w-full">
+                            <div class="label py-1"><span class="label-text text-sm font-medium">Logout time <span class="text-[10px] font-normal text-base-content/50 ml-1">on-site sign-out</span></span></div>
+                            <input
+                                type="datetime-local"
+                                wire:model.live="logOutDate"
+                                class="input input-bordered input-sm w-full"
+                            />
+                        </label>
                     </div>
                     <p class="text-[11px] text-base-content/60 mt-2 flex items-center gap-1.5"
-                       x-data
-                       x-init="$nextTick(() => {
-                           if (! $wire.get('serviceStartDateTime')) {
-                               const d = new Date();
-                               d.setSeconds(0, 0);
-                               const pad = n => String(n).padStart(2,'0');
-                               $wire.set('serviceStartDateTime',
-                                   d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-                                   'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()));
-                           }
-                       })"
+                       x-data="tsrTimeAutofill()"
                        x-show="! $wire.get('serviceStartDateTime')"
                        x-cloak>
                         <span aria-hidden="true">💡</span>
-                        Tip: We'll auto-fill the arrival time with the current time if you leave it blank.
+                        Tip: We'll auto-fill any blank timestamp with the current time if you leave it empty.
                     </p>
                 </div>
             </section>
@@ -285,10 +305,10 @@
                             <button
                                 type="button"
                                 role="radio"
-                                :aria-checked="(($wire.get('serviceStatus') || 'open') === '{{ $value }}').toString()"
+                                :aria-checked="(($wire.get('serviceStatus') || 'in_progress') === '{{ $value }}').toString()"
                                 wire:click="$set('serviceStatus', '{{ $value }}')"
                                 class="btn btn-sm gap-1.5 normal-case font-medium"
-                                :class="(($wire.get('serviceStatus') || 'open') === '{{ $value }}') ? 'btn-{{ $meta['tone'] }} btn-active' : 'btn-ghost border border-base-300'"
+                                :class="(($wire.get('serviceStatus') || 'in_progress') === '{{ $value }}') ? 'btn-{{ $meta['tone'] }} btn-active' : 'btn-ghost border border-base-300'"
                             >
                                 <span class="w-1.5 h-1.5 rounded-full {{ $meta['dot'] }}" aria-hidden="true"></span>
                                 {{ $meta['label'] }}
@@ -453,33 +473,169 @@
                     </div>
                 </div>
 
-                {{-- Team members (optional) --}}
-                <div class="mt-4 rounded-lg border border-base-300 bg-base-100 p-4">
+                {{-- Team members (optional) — multi-select dropdown of other TSPs --}}
+                @php
+                    // Render-time hint for initial paint; Alpine reads live state via $wire.
+                    $availableTspsJson = json_encode($availableTsps, JSON_THROW_ON_ERROR);
+                @endphp
+                <div
+                    class="mt-4 rounded-lg border border-base-300 bg-base-100 p-4"
+                    x-data='{
+                        search: "",
+                        open: false,
+                        // Snapshotted once; availableTsps is a static list of DB users
+                        // and does not change during a session.
+                        allTsps: {{ $availableTspsJson }},
+                        // Internal mirror of the selected TSPs. We keep a local copy
+                        // (keyed off monday_id) so Alpine x-for can diff cleanly;
+                        // the wire:$entangle mirror keeps it in sync with Livewire.
+                        selectedTsps: [],
+                        init() {
+                            this.recomputeSelected();
+                            // Re-mirror whenever Livewire mutates tspWorkWith.
+                            this.$watch("$wire.tspWorkWith", () => this.recomputeSelected());
+                        },
+                        recomputeSelected() {
+                            const ids = (this.$wire.get("tspWorkWith") || []).map(String);
+                            const next = ids
+                                .map(id => this.allTsps.find(t => t && String(t.monday_id) === id))
+                                .filter(Boolean);
+                            this.selectedTsps = next;
+                        },
+                        get ids() {
+                            return (this.$wire.get("tspWorkWith") || []).map(String);
+                        },
+                        get available() {
+                            const term = this.search.trim().toLowerCase();
+                            if (!term) return this.allTsps;
+                            return this.allTsps.filter(t =>
+                                (t.name || "").toLowerCase().includes(term)
+                                || (t.role || "").toLowerCase().includes(term)
+                                || String(t.monday_id || "").includes(term)
+                            );
+                        },
+                        get count() { return this.selectedTsps.length; },
+                        isSelected(id) { return this.ids.includes(String(id)); },
+                    }'
+                >
+                    {{-- Header --}}
                     <div class="flex items-center gap-2 mb-2">
                         <span class="w-6 h-6 rounded-md bg-base-200 text-base-content/70 flex items-center justify-center" aria-hidden="true">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2a4 4 0 11-8 0 4 4 0 018 0zm6 0a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                         </span>
-                        <h4 class="text-sm font-semibold text-base-content">Team members <span class="text-xs font-normal text-base-content/55 ml-1">optional</span></h4>
-                    </div>
-                    <p class="text-[11px] text-base-content/55 mb-2">Did other technicians help with this service? Add their IDs below, separated by commas.</p>
-                    <input
-                        type="text"
-                        wire:model.live="tspWorkWithCsv"
-                        class="input input-bordered input-sm w-full"
-                        placeholder="e.g. 77787515, 77787561"
-                        inputmode="numeric"
-                        autocomplete="off"
-                    />
-                    <div class="flex items-center justify-between mt-2 text-[11px] text-base-content/55">
-                        <span>Leave blank if you worked alone.</span>
+                        <h4 class="text-sm font-semibold text-base-content">
+                            Team members
+                            <span class="text-xs font-normal text-base-content/55 ml-1">optional</span>
+                        </h4>
                         <span
-                            x-data="{ n: 0 }"
-                            x-init="n = ($wire.get('tspWorkWithCsv') || '').split(',').map(s => s.trim()).filter(Boolean).length"
-                            :class="n > 0 ? 'text-primary font-semibold' : ''"
+                            class="ml-auto text-[11px]"
+                            :class="count > 0 ? 'text-primary font-semibold' : 'text-base-content/55'"
                         >
-                            <span x-text="n"></span> member<span x-show="n !== 1">s</span> added
+                            <span x-text="count"></span> member<span x-show="count !== 1">s</span> added
                         </span>
                     </div>
+
+                    <p class="text-[11px] text-base-content/55 mb-3">
+                        Did other technicians help with this service? Pick them from the list below. Leave empty if you worked alone.
+                    </p>
+
+                    {{-- Selected chips --}}
+                    <div
+                        class="flex flex-wrap gap-1.5 mb-2 min-h-[1.75rem]"
+                        x-show="count > 0"
+                        x-cloak
+                    >
+                        <template x-for="t in selectedTsps" :key="t.monday_id">
+                            <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary border border-primary/30 pl-2.5 pr-1 py-0.5 text-xs font-medium">
+                                <span x-text="t.name || ('#' + t.monday_id)"></span>
+                                <span class="text-primary/60 text-[10px] uppercase tracking-wide" x-text="t.role"></span>
+                                <button
+                                    type="button"
+                                    class="ml-0.5 w-4 h-4 rounded-full hover:bg-primary/20 flex items-center justify-center"
+                                    :aria-label="'Remove ' + (t.name || t.monday_id)"
+                                    @click="$wire.removeTsp(String(t.monday_id))"
+                                >
+                                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </span>
+                        </template>
+                    </div>
+
+                    {{-- Search + dropdown trigger --}}
+                    <div
+                        class="relative"
+                        @click.outside="open = false"
+                    >
+                        <div class="flex items-center gap-2">
+                            <div class="relative flex-1">
+                                <svg class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-base-content/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                                <input
+                                    type="text"
+                                    x-model="search"
+                                    @focus="open = true"
+                                    placeholder="Search technicians by name, role, or Monday ID…"
+                                    class="input input-bordered input-sm w-full pl-7"
+                                    autocomplete="off"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                class="btn btn-ghost btn-sm gap-1"
+                                @click="open = !open"
+                                :aria-expanded="open ? 'true' : 'false'"
+                            >
+                                <span x-text="open ? 'Hide' : 'Show'"></span>
+                                <svg class="w-3 h-3 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                        </div>
+
+                        {{-- Dropdown list --}}
+                        <div
+                            x-show="open"
+                            x-cloak
+                            x-transition.opacity.duration.150ms
+                            class="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+                        >
+                            <template x-if="available.length === 0">
+                                <div class="px-3 py-4 text-center text-xs text-base-content/55">
+                                    No matching technicians.
+                                </div>
+                            </template>
+                            <template x-for="t in available" :key="t.monday_id">
+                                <button
+                                    type="button"
+                                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-base-200/60 focus:bg-base-200/60 focus:outline-none transition-colors"
+                                    :class="isSelected(t.monday_id) ? 'bg-primary/5' : ''"
+                                    @click="
+                                        const mid = String(t.monday_id);
+                                        $wire.toggleTsp(mid);
+                                        // keep open so users can pick several in a row
+                                    "
+                                >
+                                    <span
+                                        class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
+                                        :class="isSelected(t.monday_id) ? 'bg-primary border-primary text-primary-content' : 'border-base-300 bg-base-100'"
+                                    >
+                                        <svg x-show="isSelected(t.monday_id)" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                    </span>
+                                    <span class="flex-1 min-w-0">
+                                        <span class="block truncate font-medium" x-text="t.name || ('#' + t.monday_id)"></span>
+                                        <span class="block text-[11px] text-base-content/55">
+                                            <span class="uppercase tracking-wide" x-text="t.role"></span>
+                                            <template x-if="t.monday_id">
+                                                <span> · Mon #<span x-text="t.monday_id"></span></span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- Hidden shim: keeps $tspWorkWithCsv populated for any callers that
+                         still read it (e.g. legacy test fixtures). Bound with wire:model
+                         so server state matches the dropdown. --}}
+                    <input type="hidden" wire:model="tspWorkWithCsv" />
                 </div>
             </section>
 
@@ -632,6 +788,13 @@
                         _draftDiscarding: false,
                         _draftUserTouched: false,
                         _hydrating: false,
+
+                        // Manual "Save draft" feedback. The button in
+                        // the top header calls saveDraftManual() which
+                        // writes a snapshot to localStorage and flashes
+                        // the button text "Saved ✓" for 2 seconds.
+                        draftSavedAt: null,
+                        _draftManualTimer: null,
 
                         // ─── Lifecycle ───
                         init() {
@@ -896,6 +1059,32 @@
                                 // we just can't autosave.
                                 console.warn('tsr draft save failed:', e);
                             }
+                        },
+                        // Manual "Save draft" handler. Wired to the
+                        // button in the top header. Always succeeds
+                        // even if the user hasn't typed anything yet
+                        // (we mark _draftUserTouched = true so the
+                        // recovered-draft check on next load still
+                        // finds the saved snapshot).
+                        saveDraftManual() {
+                            // Mark as touched so the stored draft
+                            // counts as "the user's" snapshot, not
+                            // the empty initial form.
+                            this._draftUserTouched = true;
+                            this._saveDraftNow();
+                            this.draftSavedAt = Date.now();
+                            // Clear any previous flash timer.
+                            if (this._draftManualTimer) {
+                                clearTimeout(this._draftManualTimer);
+                            }
+                            // The button shows "Saved ✓" for 2s,
+                            // then flips back to "Save draft". The
+                            // timer is stored on the component so
+                            // a fast double-click doesn't pile up.
+                            this._draftManualTimer = setTimeout(() => {
+                                this.draftSavedAt = null;
+                                this._draftManualTimer = null;
+                            }, 2000);
                         },
                         _hydrateFromDraft() {
                             if (! this._draftAvailable) return;
@@ -1181,6 +1370,40 @@
                                     el.setAttribute('data-error',   this.error);
                                 }
                             } catch (e) { /* silent — next tick will retry */ }
+                        },
+                    };
+                };
+
+                // ----------------------------------------------------------------
+                //  tsrTimeAutofill — tiny Alpine component for the
+                //  "auto-fill blank timestamps" tip. It runs once
+                //  on mount and patches any of the four timestamp
+                //  fields (serviceStartDateTime, logInDate,
+                //  serviceEndDateTime, logOutDate) that the TSP
+                //  left blank with the current device time.
+                //  Lives as its own component so the markup
+                //  doesn't have to ship a multi-line JS expression
+                //  through an x-init attribute (which Alpine can't
+                //  reliably parse when it contains // comments).
+                // ----------------------------------------------------------------
+                window.tsrTimeAutofill = function () {
+                    return {
+                        init() {
+                            this.$nextTick(() => {
+                                try {
+                                    const pad = (n) => String(n).padStart(2, '0');
+                                    const nowIso = () => {
+                                        const d = new Date();
+                                        d.setSeconds(0, 0);
+                                        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                                            + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+                                    };
+                                    if (! this.$wire.get('serviceStartDateTime')) this.$wire.set('serviceStartDateTime', nowIso());
+                                    if (! this.$wire.get('logInDate'))           this.$wire.set('logInDate',           nowIso());
+                                    if (! this.$wire.get('serviceEndDateTime'))  this.$wire.set('serviceEndDateTime',  nowIso());
+                                    if (! this.$wire.get('logOutDate'))          this.$wire.set('logOutDate',          nowIso());
+                                } catch (e) { /* silent — don't break the page over a tip */ }
+                            });
                         },
                     };
                 };

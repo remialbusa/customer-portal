@@ -74,6 +74,7 @@ final class MondayColumnIds
         'Resolved'       => 4, // verify
         'Done'           => 5, // verify
         'Closed'         => 6, // verify
+        'COMPLETED'      => 11, // verified 2026-07-20 against board 5029331350
     ];
 
     // ─── TSR board (5029041107) — written when a TSP submits a report ─

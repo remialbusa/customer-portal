@@ -36,14 +36,14 @@ new class extends Component
                             default    => 'dashboard',
                         };
                     @endphp
-                    <a href="{{ route($homeRoute) }}" wire:navigate class="flex items-center gap-2 group">
+                    <a href="{{ route($homeRoute) }}" class="flex items-center gap-2 group">
                         <x-application-logo class="block h-9 w-auto fill-current text-base-content" />
                     </a>
                 </div>
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-2 sm:-my-px sm:ms-8 sm:flex sm:items-center">
-                    <x-nav-link :href="route($homeRoute)" :active="request()->routeIs($homeRoute)" wire:navigate>
+                    <x-nav-link :href="route($homeRoute)" :active="request()->routeIs($homeRoute)">
                         @if($user?->isSuperAdmin())
                             {{ __('Invites') }}
                         @elseif($user?->isAdmin())
@@ -112,8 +112,14 @@ new class extends Component
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden border-t border-base-300/60">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate>
-                {{ __('Dashboard') }}
+            <x-responsive-nav-link :href="route($homeRoute)" :active="request()->routeIs($homeRoute)">
+                @if($user?->isSuperAdmin())
+                    {{ __('Invites') }}
+                @elseif($user?->isAdmin())
+                    {{ __('KPI') }}
+                @else
+                    {{ __('Dashboard') }}
+                @endif
             </x-responsive-nav-link>
         </div>
 

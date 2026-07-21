@@ -8,6 +8,7 @@ use App\Enums\SyncState;
 use App\Models\ServiceReport;
 use App\Services\MondayClient;
 use App\Support\Monday\MondayColumnIds;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -72,6 +73,61 @@ class SyncPendingTsrReports
                     ]);
                 }
             });
+
+        return $stats;
+    }
+
+    /**
+     * Drain ONE specific row to monday. Used by the immediate-drain
+     * path on the Livewire submit so the just-saved TSR (the
+     * newest pending row) doesn't get stuck behind an older failed
+     * drain in the FIFO queue.
+     *
+     * The caller is expected to be `SubmitServiceReport::execute()`
+     * after the local DB transaction has committed. The row is
+     * already in `sync_state='pending'` and `monday_tsr_item_id IS
+     * NULL` (fresh row), so this is the safe path — no risk of
+     * double-creating the TSR on Monday.
+     *
+     * Returns the same stats shape as `execute()` but always
+     * either 0 or 1 in `succeeded` / `failed` / `processed`.
+     *
+     * @return array{processed:int, succeeded:int, failed:int}
+     */
+    public function syncOneRow(ServiceReport $r): array
+    {
+        $stats = ['processed' => 0, 'succeeded' => 0, 'failed' => 0];
+
+        // Idempotency guard: if a previous attempt already got the
+        // TSR onto Monday (monday_tsr_item_id set) we must NOT call
+        // createServiceReportItem again. The ReuploadSignatures
+        // artisan command is the recovery path for partial-success
+        // rows, not this method.
+        if (! empty($r->monday_tsr_item_id)) {
+            Log::info('syncOneRow: row already has monday_tsr_item_id, skipping', [
+                'local_id'          => $r->local_id,
+                'monday_tsr_item_id' => $r->monday_tsr_item_id,
+            ]);
+            return $stats;
+        }
+
+        $stats['processed']++;
+        $r->update(['sync_state' => SyncState::Syncing, 'sync_error' => null]);
+
+        try {
+            $this->syncOne($r);
+            $stats['succeeded']++;
+        } catch (Throwable $e) {
+            $stats['failed']++;
+            $r->update([
+                'sync_state' => SyncState::Error,
+                'sync_error' => substr($e->getMessage(), 0, 500),
+            ]);
+            Log::error('TSR sync failed (immediate)', [
+                'local_id' => $r->local_id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
 
         return $stats;
     }
@@ -232,6 +288,18 @@ class SyncPendingTsrReports
                 'tsr_status'  => $status->value,
                 'new_label'   => $appliedLabel,
             ]);
+
+            // Bust the 60s getBoardItems() cache for the tickets
+            // board so the customer/TSP dashboard reflects the
+            // new ticket status on the NEXT request, not 60s
+            // later. Without this the user would submit a TSR,
+            // the status flips on Monday, but the dashboard
+            // still shows "Working on it" until the cache
+            // expires.
+            $ticketsBoardId = config('services.monday.tickets_board_id');
+            if ($ticketsBoardId) {
+                Cache::forget("monday.board.{$ticketsBoardId}.items");
+            }
         }
 
         // Step 4: bookkeeping. We only flip to Synced once every

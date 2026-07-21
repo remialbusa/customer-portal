@@ -124,18 +124,42 @@
                                     default
                                         => ['class' => 'badge-ghost',   'dot' => 'bg-base-content/40'],
                                 };
+
+                                // Resolve assigned TSP name(s) from
+                                // the local users table. We do this
+                                // once per row (the dataset is small)
+                                // so the customer can see who's on
+                                // the ticket without opening the
+                                // detail page.
+                                $tspPersonIds = array_map('strval', $t['tsp_person_ids'] ?? []);
+                                $tspNameMap = \App\Services\MondayClient::resolveTspNames($tspPersonIds);
+                                $assignedNames = [];
+                                foreach ($tspPersonIds as $pid) {
+                                    $name = $tspNameMap[$pid] ?? null;
+                                    if ($name) {
+                                        $assignedNames[] = $name;
+                                    } else {
+                                        $assignedNames[] = 'TSP #' . $pid;
+                                    }
+                                }
                             @endphp
                             <li>
                                 <a href="{{ route('tickets.show', $t['id']) }}"
                                    class="block px-4 py-3.5 hover:bg-base-200/60 transition group">
                                     <div class="flex items-center gap-3">
                                         <div class="flex-1 min-w-0">
-                                            <div class="flex items-center gap-2 mb-1">
+                                            <div class="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span class="text-[11px] font-mono text-base-content/50">#{{ $t['id'] }}</span>
                                                 <span class="badge {{ $statusConfig['class'] }} badge-sm gap-1 font-medium">
                                                     <span class="w-1.5 h-1.5 rounded-full {{ $statusConfig['dot'] }}"></span>
                                                     {{ $t['status_text'] ?? '—' }}
                                                 </span>
+                                                @if(!empty($assignedNames))
+                                                    <span class="badge badge-outline badge-sm gap-1 text-[10px]" title="Assigned technician{{ count($assignedNames) > 1 ? 's' : '' }}">
+                                                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                                        {{ implode(', ', $assignedNames) }}
+                                                    </span>
+                                                @endif
                                             </div>
                                             <h3 class="text-sm font-semibold text-base-content truncate group-hover:text-primary transition">
                                                 {{ $t['subject_text'] ?: $t['name'] }}

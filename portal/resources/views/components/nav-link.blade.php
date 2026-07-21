@@ -8,6 +8,6 @@ $classes = ($active ?? false)
             : 'inline-flex items-center px-3 py-2 rounded-md text-sm font-medium text-base-content/70 hover:text-base-content hover:bg-base-200 border-b-2 border-transparent transition';
 @endphp
 
-<a {{ $attributes->merge(['class' => $classes]) }}>
+<a {{ $attributes->merge(['class' => $classes, 'wire:navigate' => true]) }}>
     {{ $slot }}
 </a>

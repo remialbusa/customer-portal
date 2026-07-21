@@ -105,7 +105,7 @@ Broadcast::channel('ticket.{mondayId}.internal', function (User $user, string $m
 | Channel: `private-ticket.{mondayId}.customer`
 |
 | Used to push real-time ticket-status changes (e.g. when a TSP submits
-| a service report and flips status95 to "Resolved") to the customer's
+| a service report and flips status95 to "COMPLETED") to the customer's
 | open ticket page and dashboard. Both customers and TSPs may join —
 | the customer can only join tickets they own, TSPs may join any.
 */
@@ -139,4 +139,56 @@ Broadcast::channel('ticket.{mondayId}.customer', function (User $user, string $m
     }
 
     return false;
+});
+
+/*
+|--------------------------------------------------------------------------
+| Region-scoped TSP channels
+|--------------------------------------------------------------------------
+| Channels: `private-region.ncr`, `private-region.north-luzon`,
+|           `private-region.visayas`, `private-region.mindanao`,
+|           `private-region.all`
+|
+| Used by the TSP dashboard to receive real-time updates about new
+| tickets in their region (TicketCreated) and tickets leaving the
+| pool (TicketClaimed). Customers are NEVER authorized to subscribe
+| to these channels.
+|
+| The `region` portion of the channel name is the raw string from the
+| URL — e.g. `region.ncr` resolves to a callback with $region = 'ncr'.
+| We normalise to lowercase to match the `regionCode` emitted by
+| `TicketCreated::broadcastOn()`.
+*/
+Broadcast::channel('region.{region}', function (User $user, string $region) {
+    // Customers are never allowed on the regional TSP channels.
+    if ($user->role === 'customer') {
+        return false;
+    }
+
+    // Admins and TSP roles (fse / its / manager) can join the
+    // catch-all `region.all` channel. For region-specific channels
+    // we additionally check that the user's region matches the
+    // requested region code (after normalisation).
+    $isTsp = in_array($user->role, ['fse', 'its', 'manager', 'admin'], true);
+    if (! $isTsp) {
+        return false;
+    }
+
+    $region = strtolower(trim($region));
+    if ($region === 'all') {
+        return true;
+    }
+
+    // Compare against the user's resolved region. The user may have
+    // `users.region` set directly (xlsx-seeded) or only `branch`
+    // (Monday-synced) — the resolver handles both. We do a tolerant
+    // string compare: 'ncr' == 'ncr', 'visayas' == 'visayas', etc.
+    $userRegion = \App\Support\RegionResolver::resolveForCustomer($user);
+    if ($userRegion === null) {
+        // User has no resolvable region — they can still join the
+        // catch-all but not a specific regional channel.
+        return false;
+    }
+
+    return strtolower($userRegion) === $region;
 });

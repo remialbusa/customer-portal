@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\AssertsTicketAccess;
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
 use App\Models\User;
+use App\Services\MondayClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -27,10 +28,34 @@ class ChatController extends Controller
 
         $messages = $this->loadMessageHistory($id, $user);
 
+        // Resolve assigned TSP name(s) from the People column so the
+        // customer knows who has claimed their ticket.
+        $assignedNames = [];
+        $peopleCol = config('services.monday.tickets_columns.tsp');
+        $peopleValue = $item['column_values'][$peopleCol]['value'] ?? null;
+        if ($peopleValue) {
+            $decoded = json_decode($peopleValue, true);
+            if (is_array($decoded) && isset($decoded['personsAndTeams'])) {
+                $tspIds = [];
+                foreach ($decoded['personsAndTeams'] as $row) {
+                    if (isset($row['id'])) {
+                        $tspIds[] = (string) $row['id'];
+                    }
+                }
+                $tspNameMap = MondayClient::resolveTspNames($tspIds);
+                foreach ($tspIds as $pid) {
+                    $name = $tspNameMap[$pid] ?? null;
+                    if ($name) { $assignedNames[] = $name; }
+                    else { $assignedNames[] = 'TSP #' . $pid; }
+                }
+            }
+        }
+
         return view('customer.tickets.show', [
             'user'     => $user,
             'ticket'   => $item,
             'messages' => $messages,
+            'assignedNames' => $assignedNames,
         ]);
     }
 

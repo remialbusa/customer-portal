@@ -1,3 +1,9 @@
+@php
+    // Route authenticated users to the right dashboard for their role,
+    // not a hardcoded /dashboard (which is customer-only and 403s for
+    // FSE/ITS/Manager/Admin). See User::homeRoute().
+    $dashboardRoute = auth()->user()?->homeRoute() ?? 'login';
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-smooth h-full">
     <head>
@@ -9,10 +15,11 @@
 
         <link rel="icon" type="image/svg+xml" href="{{ asset('images/brand/favicon.svg') }}">
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" rel="stylesheet" />
+        <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+        <link rel="preload" href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" as="style" onload="this.rel='stylesheet'">
+        <noscript><link href="https://fonts.bunny.net/css?family=inter:400,500,600,700|plus-jakarta-sans:600,700,800&display=swap" rel="stylesheet"></noscript>
 
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/guest.js'])
     </head>
 
     <body class="font-sans antialiased text-brand-slate bg-brand-cream min-h-full flex flex-col">
@@ -28,7 +35,7 @@
 
                 <div class="flex items-center gap-3">
                     @auth
-                        <a href="{{ url('/dashboard') }}" wire:navigate
+                        <a href="{{ route($dashboardRoute) }}" wire:navigate
                            class="rounded-lg bg-brand-cta px-4 py-2 text-sm font-semibold text-white hover:opacity-95 transition">
                             Open dashboard
                         </a>
@@ -58,7 +65,7 @@
 
                     <div class="mt-8 flex flex-wrap items-center gap-3">
                         @auth
-                            <a href="{{ url('/dashboard') }}" wire:navigate
+                            <a href="{{ route($dashboardRoute) }}" wire:navigate
                                class="inline-flex items-center gap-2 rounded-lg bg-brand-cta px-5 py-3 text-base font-semibold text-white hover:opacity-95 transition">
                                 Go to your dashboard
                             </a>

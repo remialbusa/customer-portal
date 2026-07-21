@@ -221,6 +221,42 @@ class MondayClient
         return $item['column_values'][$columnId]['text'] ?? null;
     }
 
+    /**
+     * Resolve a list of Monday person IDs to TSP display names by
+     * joining the local `users` table on `monday_id`.
+     *
+     * The portal keeps a local mirror of the TSP directory (name +
+     * monday_id) so the UI can render a person's real name without
+     * an extra round-trip to Monday. The local table is updated by
+     * the admin user-management flow; it's not auto-synced.
+     *
+     * Returns a map of monday_person_id => name. IDs that aren't
+     * known to the local directory are omitted (the caller can
+     * fall back to the raw id).
+     *
+     * Static so it can be called from Blade views and Livewire
+     * components without injecting a MondayClient instance.
+     *
+     * @param  array<int, string|int>  $mondayPersonIds
+     * @return array<string, string>   map of monday_id => name
+     */
+    public static function resolveTspNames(array $mondayPersonIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn ($id) => (string) $id,
+            $mondayPersonIds,
+        ), static fn (string $id) => $id !== '')));
+        if (empty($ids)) {
+            return [];
+        }
+        return \App\Models\User::query()
+            ->whereIn('monday_id', $ids)
+            ->whereNotNull('name')
+            ->pluck('name', 'monday_id')
+            ->map(static fn ($n) => (string) $n)
+            ->toArray();
+    }
+
     // ---------------------------------------------------------------------
     // Convenience: tickets
     // ---------------------------------------------------------------------
@@ -750,6 +786,28 @@ class MondayClient
             ];
         }
 
+        // MACHINE BRAND / MODEL — plain text columns on the Customer
+        // Tickets board (text_mm5apcrc for MACHINE BRAND,
+        // text_mm5am2kf for MACHINE MODEL). When the customer uses
+        // the "different machine" manual input on the create-ticket
+        // form, the local brand / model strings get passed in here.
+        // We only write when the config keys are mapped (so older
+        // deployments without these column ids don't break) and
+        // only when the value is non-empty. Values are written as
+        // plain strings — these columns are the simple `text` type,
+        // not dropdowns, so no label-id lookup is required.
+        // (The dropdown-type BRAND/MODEL columns on the Internal
+        // Tickets board — dropdown_mm3gjs5y / dropdown_mm3gx0tz —
+        // are read-only mirrors and CANNOT be written from this
+        // integration; that board is the internal one, not the
+        // customer-facing one we use here.)
+        if (! empty($data['brand']) && ! empty($cols['brand'])) {
+            $columnValues[$cols['brand']] = (string) $data['brand'];
+        }
+        if (! empty($data['model']) && ! empty($cols['model'])) {
+            $columnValues[$cols['model']] = (string) $data['model'];
+        }
+
         // TSP People column (multiple_person_mm4fqar3). Accepts an
         // array of monday person ids; we'll wrap it in the {personsAndTeams: [...]}
         // envelope the column expects. Skipped silently when the list is empty
@@ -1058,9 +1116,24 @@ class MondayClient
         } catch (MondayApiException $e) {
             // If the only error is the ticket-relation column whose
             // source board hasn't been configured in the Monday UI
-            // (or whose target item has been archived), strip the
-            // relation and re-issue. The TSR item is still created,
-            // and the user can wire the relation manually later.
+            // (or whose target item has been archived / moved to
+            // trash / soft-deleted), strip the relation and re-issue.
+            // The TSR item is still created, and the user can wire
+            // the relation manually later.
+            //
+            // Codes we tolerate:
+            //  - itemsNotInConnectedBoards: the column's connected
+            //    board list doesn't include the target board.
+            //  - inactiveItems: the target ticket was archived.
+            //  - linkedToDeletedItems: the target ticket is in the
+            //    trash. This is the most common cause of "stuck"
+            //    TSR rows in the local DB — the user closed the
+            //    ticket on Monday, our drain tries to attach the
+            //    TSR, and the relation refuses. Stripping the
+            //    relation lets the TSR go through and the row gets
+            //    marked synced; the only thing lost is the
+            //    back-link from TSR → ticket, which the user can
+            //    see in the Monday UI and wire manually if needed.
             if (
                 $relationColumn !== null
                 && $e->isColumnValidationError()
@@ -1068,6 +1141,7 @@ class MondayClient
                 && in_array($e->columnValidationCode(), [
                     'itemsNotInConnectedBoards',
                     'inactiveItems',
+                    'linkedToDeletedItems',
                 ], true)
             ) {
                 Log::warning('Monday rejected Service Number relation; retrying without it', [
@@ -1452,11 +1526,11 @@ class MondayClient
     /**
      * Generic change_column_value. The TSR drainer uses this to
      * patch the source ticket's status95 once the TSR is created
-     * (e.g. TSR "completed" → ticket "Resolved"). For richer
+     * (e.g. TSR "completed" → ticket "COMPLETED"). For richer
      * payloads (file uploads, multiple columns) prefer the
      * dedicated helpers below.
      *
-     * @param  array<string, mixed>  $columnValues  e.g. ['status95' => ['label' => 'Resolved']]
+     * @param  array<string, mixed>  $columnValues  e.g. ['status95' => ['label' => 'COMPLETED']]
      */
     public function changeColumnValues(
         int $boardId,

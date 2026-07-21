@@ -75,6 +75,61 @@ class InternalNoteController extends Controller
             ->orderByDesc('created_at')
             ->first();
 
+        // Resolve assigned TSP name(s) from the People column. Shown in
+        // the assigned-technician callout so managers and other TSPs
+        // (co-claim scenarios) can see who's responsible.
+        $assignedNames = [];
+        $peopleCol = config('services.monday.tickets_columns.tsp');
+        $peopleValue = $item['column_values'][$peopleCol]['value'] ?? null;
+        if ($peopleValue) {
+            $decoded = json_decode($peopleValue, true);
+            if (is_array($decoded) && isset($decoded['personsAndTeams'])) {
+                $tspIds = [];
+                foreach ($decoded['personsAndTeams'] as $row) {
+                    if (isset($row['id'])) {
+                        $tspIds[] = (string) $row['id'];
+                    }
+                }
+                $tspNameMap = MondayClient::resolveTspNames($tspIds);
+                foreach ($tspIds as $pid) {
+                    $name = $tspNameMap[$pid] ?? null;
+                    if ($name) { $assignedNames[] = $name; }
+                    else { $assignedNames[] = 'TSP #' . $pid; }
+                }
+            }
+        }
+
+        // Build the Alpine `ticketStatusPoller(...)` argument list in PHP
+        // (rather than the Blade view) so the rendered `x-data` value
+        // is just a single template variable. The previous approach —
+        // a `@php` block followed by `<x-ui.card x-data="...">` —
+        // confused the Blade compiler: with `@js(...)`/`route(...)`
+        // inside an attribute value passed to a component, the
+        // directives weren't compiled and the `x-data` ended up as
+        // a literal Blade source string at runtime. Building the
+        // string here keeps the view a one-liner.
+        $statusText  = $item['column_values']['status95']['text'] ?? null;
+        $statusLower = strtolower((string) $statusText);
+        $statusBadge = match (true) {
+            str_contains($statusLower, 'new') || str_contains($statusLower, 'open') => 'badge-info',
+            str_contains($statusLower, 'progress') => 'badge-warning',
+            str_contains($statusLower, 'awaiting') => 'badge-accent',
+            str_contains($statusLower, 'resolved')
+                || str_contains($statusLower, 'closed')
+                || str_contains($statusLower, 'done')
+                || str_contains($statusLower, 'complete') => 'badge-success',
+            default => 'badge-ghost',
+        };
+        $pollerArgs = [
+            'url'              => route('tsp.tickets.status', ['id' => $item['id']]),
+            'intervalMs'       => 15000,
+            'initialStatus'    => $statusText,
+            'initialBadge'     => $statusBadge,
+            'initialHasReport' => $report ? true : false,
+            'tsrShowUrl'       => $report ? route('tsp.service-reports.show', ['id' => $report->id]) : null,
+        ];
+        $pollerXData = 'ticketStatusPoller(' . json_encode($pollerArgs) . ')';
+
         return view('tsp.ticket-show', [
             'user'         => $user,
             'ticket'       => $item,
@@ -82,6 +137,8 @@ class InternalNoteController extends Controller
             'notes'        => $notes,
             'timeActive'   => $timeActive,
             'timeTotal'    => $timeTotal,
+            'assignedNames' => $assignedNames,
+            'pollerXData'  => $pollerXData,
             'existingReport' => $report ? [
                 'id'                    => (int) $report->id,
                 'service_status'        => $report->service_status,
@@ -109,6 +166,56 @@ class InternalNoteController extends Controller
                 'biomed_email'          => $report->biomed_email,
                 'created_at'            => $report->created_at->toIso8601String(),
             ] : null,
+        ]);
+    }
+
+    /**
+     * Lightweight JSON status endpoint for the ticket-show page's
+     * Alpine poller. Returns the fields the header / status badge
+     * / "create TSR" affordance care about, plus a server-side
+     * last-modified timestamp so the poller can short-circuit a
+     * page reload when nothing changed since the last fetch.
+     *
+     * Cost: one Monday round-trip per call. The poller on the view
+     * runs every 15s and the response is cached server-side for 5s
+     * (see Cache::remember call below) so a tab storm doesn't
+     * hammer the Monday API.
+     */
+    public function statusJson(string $id, MondayClient $monday): JsonResponse
+    {
+        $user = auth()->user();
+        $item = $this->loadMondayTicket($id);
+        $this->authorizeTicketAccess($user, $item);
+
+        $status = $item['column_values']['status95']['text'] ?? null;
+        $subject = $item['column_values']['text_mm5c1w5n']['text'] ?? ($item['name'] ?? null);
+
+        // Was a service report created since the page loaded? The
+        // page hydrates `existingReport` from the DB; if the user
+        // opens the form in another tab and submits, the
+        // `created_at` of the latest report will be newer than the
+        // page-render time. The poller flips the "Create TSR"
+        // button to "View TSR" without a hard reload.
+        $latestReport = ServiceReport::where('monday_ticket_id', $id)
+            ->orderByDesc('created_at')
+            ->first();
+        $hasReport = $latestReport !== null;
+
+        // A snapshot of pending sync state, mirrored to the TSR
+        // form's sticky bar but useful here too so the page can
+        // show "TSR syncing…" or "TSR synced" in the header.
+        $pendingSync = ServiceReport::where('monday_ticket_id', $id)
+            ->where('sync_state', '!=', \App\Enums\SyncState::Synced->value)
+            ->count();
+
+        return response()->json([
+            'ok'              => true,
+            'status_text'     => $status,
+            'subject'         => $subject,
+            'has_report'      => $hasReport,
+            'pending_sync'    => $pendingSync,
+            'monday_updated'  => $item['updated_at'] ?? null,
+            'fetched_at'      => now()->toIso8601String(),
         ]);
     }
 

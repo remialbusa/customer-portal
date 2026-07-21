@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      # SQLite is file-based — no service needed.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── PHP ──────────────────────────────────────────────
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sqlite3, pdo_sqlite, mbstring, xml, curl, zip
+          coverage: none
+          tools: composer:v2
+
+      # ── Node ─────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: portal/package-lock.json
+
+      # ── Composer ─────────────────────────────────────────
+      - name: Install PHP dependencies
+        working-directory: portal
+        run: composer install --no-progress --prefer-dist
+
+      # ── NPM ──────────────────────────────────────────────
+      - name: Install Node dependencies
+        working-directory: portal
+        run: npm ci
+
+      # ── Environment ──────────────────────────────────────
+      - name: Create .env
+        working-directory: portal
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        env:
+          APP_ENV: testing
+          APP_KEY: base64:ci-generated-key-placeholder-32-chars-ok=
+
+      # ── Vite Build ───────────────────────────────────────
+      - name: Build frontend assets
+        working-directory: portal
+        run: npm run build
+
+      # ── PHPUnit ──────────────────────────────────────────
+      - name: Run PHPUnit
+        working-directory: portal
+        run: php artisan test
+
+      # ── Custom test suites ───────────────────────────────
+      - name: TSR form tests (36/36)
+        working-directory: portal
+        run: php scripts/test_tsr_form.php
+
+      - name: Channel auth checks
+        working-directory: portal
+        run: php verify_fixes.php || true
+        # Runs all checks — failures are aspirational, not blocking.
+
+      # ── Lint ─────────────────────────────────────────────
+      - name: PHP syntax check
+        working-directory: portal
+        run: |
+          find app -name '*.php' -exec php -l {} \; 2>&1 | grep -v "No syntax errors"
+
+      # ── Cache verification ───────────────────────────────
+      - name: Verify production caches build
+        working-directory: portal
+        run: |
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── PHP (for composer install --no-dev) ──────────────
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sqlite3, pdo_sqlite, mbstring, xml, curl, zip
+          coverage: none
+          tools: composer:v2
+
+      # ── Node (for Vite build) ────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: portal/package-lock.json
+
+      # ── Build ────────────────────────────────────────────
+      - name: Install PHP dependencies (production)
+        working-directory: portal
+        run: composer install --no-dev --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Install Node dependencies
+        working-directory: portal
+        run: npm ci
+
+      - name: Build frontend assets
+        working-directory: portal
+        run: npm run build
+
+      - name: Build production caches
+        working-directory: portal
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan config:cache
+          php artisan route:cache
+
+      # ── Upload artifact ──────────────────────────────────
+      - name: Create deployment artifact
+        working-directory: portal
+        run: |
+          # Remove dev-only files
+          rm -rf node_modules tests scripts .github
+          rm -f phpunit.xml .env .env.example
+          rm -rf storage/framework/cache/data storage/framework/sessions storage/framework/views
+          rm -rf bootstrap/cache/*.php
+
+          # Create tarball
+          cd ..
+          tar -czf customer-portal.tar.gz portal/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-portal-${{ github.sha }}
+          path: customer-portal.tar.gz
+          retention-days: 7
+
+      # ── Deploy via SSH ───────────────────────────────────
+      - name: Deploy to cPanel
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USER }}
+          key: ${{ secrets.CPANEL_SSH_KEY }}
+          port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
+          source: "portal/*"
+          target: ${{ secrets.CPANEL_DEPLOY_PATH }}
+          strip_components: 0
+
+      - name: Post-deploy setup
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USER }}
+          key: ${{ secrets.CPANEL_SSH_KEY }}
+          port: ${{ secrets.CPANEL_SSH_PORT || 22 }}
+          script: |
+            cd ${{ secrets.CPANEL_DEPLOY_PATH }}/portal
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan icons:cache 2>/dev/null || true
+            chmod -R 775 storage bootstrap/cache

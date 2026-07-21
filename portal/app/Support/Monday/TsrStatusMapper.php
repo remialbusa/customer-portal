@@ -25,7 +25,7 @@ use App\Enums\ServiceStatus;
  *   TSR IN-PROGRESS → "Working on it"
  *   TSR PENDING     → "Waiting for parts"
  *   TSR ESCALATED   → "Escalated"
- *   TSR COMPLETED   → "Resolved"
+ *   TSR COMPLETED   → "COMPLETED"
  *
  * The class returns the *label string* (e.g. "Working on it") so the
  * caller can pair it with the right index from
@@ -48,7 +48,7 @@ final class TsrStatusMapper
             ServiceStatus::InProgress  => 'Working on it',
             ServiceStatus::Pending     => 'Waiting for parts',
             ServiceStatus::Escalated   => 'Escalated',
-            ServiceStatus::Completed   => 'Resolved',
+            ServiceStatus::Completed   => 'COMPLETED',
         };
     }
 

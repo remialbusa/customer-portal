@@ -16,7 +16,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use InvalidArgumentException;
 
 /**
  * Service reports (TSR) — Phase 6 (offline-first).
@@ -99,7 +101,37 @@ class ServiceReportController extends Controller
 
         $dto = $request->toDto();
 
-        $report = $action->execute($user, $dto);
+        try {
+            $report = $action->execute($user, $dto);
+        } catch (InvalidArgumentException $e) {
+            // Signature blob failed isValid() (bad mime, empty pad, or
+            // a queued payload from a form-state that lost its canvas
+            // data). Treat as a 422 so the offline queue's drain() loop
+            // drops the item instead of retrying forever every 60s.
+            // LOG_LEVEL is set to "error" in this env, so we use
+            // Log::error here even though "warning" would be more
+            // semantically correct — the action's own ERROR log is
+            // already filtered out for the same reason.
+            Log::error('TSR submission rejected — invalid payload', [
+                'ticket'     => $id,
+                'local_id'   => $dto->localId,
+                'reason'     => $e->getMessage(),
+            ]);
+
+            if ($request->wantsJson() || $request->isJson()) {
+                return response()->json([
+                    'ok'       => false,
+                    'reason'   => 'invalid_payload',
+                    'message'  => $e->getMessage(),
+                    'local_id' => $dto->localId,
+                ], 422);
+            }
+
+            throw ValidationException::withMessages([
+                'signatures' => $e->getMessage(),
+            ]);
+        }
+
         $report->total_minutes = $totalMinutes;
         $report->save();
 
@@ -140,11 +172,22 @@ class ServiceReportController extends Controller
      *   { "pending": N, "syncing": N, "synced": N, "error": N,
      *     "last_error": "...", "last_synced_at": "iso8601" }
      *
+     * Opportunistic drain: on each poll, if there's at least one
+     * 'pending' row for this ticket we fire a quick drain pass
+     * inline (best-effort, errors swallowed). This is the
+     * primary sync path now that
+     * `SubmitServiceReport::$syncAfterCommit` defaults to false —
+     * the user gets an instant "saved" toast and the Monday
+     * writes happen within 5s of the next poll, without making
+     * the user wait through 3+ API round-trips.
+     *
      * Never throws — the bar is purely cosmetic and we don't want
      * a transient 500 to blank the page.
      */
-    public function status(string $id): JsonResponse
-    {
+    public function status(
+        string $id,
+        SyncPendingTsrReports $drain = null,
+    ): JsonResponse {
         try {
             $counts = ServiceReport::query()
                 ->where('monday_ticket_id', $id)
@@ -165,12 +208,58 @@ class ServiceReportController extends Controller
                 ->orderByDesc('mirrored_to_monday_at')
                 ->first(['mirrored_to_monday_at']);
 
+            // Best-effort drain. Bounded to ONE attempt per poll
+            // so a flaky Monday can't drag the response out — the
+            // 5s poll cadence already gives us a natural retry.
+            $drainedNow = 0;
+            $pendingForThisTicket = (int) ($counts[\App\Enums\SyncState::Pending->value] ?? 0);
+            if ($pendingForThisTicket > 0 && $drain !== null) {
+                try {
+                    $oldest = ServiceReport::query()
+                        ->where('monday_ticket_id', $id)
+                        ->where('sync_state', \App\Enums\SyncState::Pending->value)
+                        ->orderBy('created_at')
+                        ->first();
+                    if ($oldest) {
+                        $stats = $drain->syncOneRow($oldest);
+                        $drainedNow = (int) ($stats['succeeded'] ?? 0);
+
+                        // Refresh counts in the response so the
+                        // pill animates ◌ → ✓ on the same poll
+                        // that did the work.
+                        if ($drainedNow > 0) {
+                            $counts = ServiceReport::query()
+                                ->where('monday_ticket_id', $id)
+                                ->selectRaw('sync_state, COUNT(*) as c')
+                                ->groupBy('sync_state')
+                                ->pluck('c', 'sync_state')
+                                ->toArray();
+
+                            $lastSynced = ServiceReport::query()
+                                ->where('monday_ticket_id', $id)
+                                ->where('sync_state', \App\Enums\SyncState::Synced->value)
+                                ->orderByDesc('mirrored_to_monday_at')
+                                ->first(['mirrored_to_monday_at']);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Swallow — the status response must always
+                    // be fast and always be 200. The row stays
+                    // 'pending' and the next poll retries.
+                    Log::info('Opportunistic TSR drain on /status failed (will retry)', [
+                        'ticket' => $id,
+                        'error'  => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return response()->json([
                 'ok'              => true,
-                'pending'         => (int) ($counts[\App\Enums\SyncState::Pending->value] ?? 0),
-                'syncing'         => (int) ($counts[\App\Enums\SyncState::Syncing->value] ?? 0),
-                'synced'          => (int) ($counts[\App\Enums\SyncState::Synced->value]  ?? 0),
-                'error'           => (int) ($counts[\App\Enums\SyncState::Error->value]   ?? 0),
+                'pending'         => (int) ($counts[\App\Enums\SyncState::Pending->value]  ?? 0),
+                'syncing'         => (int) ($counts[\App\Enums\SyncState::Syncing->value]  ?? 0),
+                'synced'          => (int) ($counts[\App\Enums\SyncState::Synced->value]   ?? 0),
+                'error'           => (int) ($counts[\App\Enums\SyncState::Error->value]    ?? 0),
+                'drained_now'     => $drainedNow,
                 'last_error'      => $lastErrored?->sync_error,
                 'last_synced_at'  => optional($lastSynced?->mirrored_to_monday_at)?->toIso8601String(),
             ], 200);

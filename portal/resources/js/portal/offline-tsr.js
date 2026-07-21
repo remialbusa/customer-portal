@@ -47,6 +47,17 @@ function openIdb() {
     });
 }
 
+// Run a callback with a fresh IDB connection that auto-closes
+// when the callback's promise settles. Avoids long-lived
+// connections that would block other tabs / Playwright tests.
+function withIdb(fn) {
+    return openIdb().then((db) => {
+        return Promise.resolve(fn(db)).finally(() => {
+            try { db.close(); } catch (e) { /* ignore */ }
+        });
+    });
+}
+
 function idbPut(db, value) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE, 'readwrite');
@@ -98,15 +109,16 @@ function lsCount() { return lsGetAll().length; }
 //  Backend selection. We try IDB once and remember the result.
 // -----------------------------------------------------------------------
 let _backend = null; // 'idb' | 'ls'
-let _db      = null;
 
 async function backend() {
-    if (_backend === 'idb' && _db) return { kind: 'idb', db: _db };
-    if (_backend === 'ls')           return { kind: 'ls' };
+    // Try IDB first, fall back to localStorage. Each call to
+    // withIdb() opens and closes its own connection, so we never
+    // hold a long-lived reference that would block other tabs
+    // or automation tools.
+    if (_backend === 'ls') return { kind: 'ls' };
     try {
-        _db = await openIdb();
-        _backend = 'idb';
-        return { kind: 'idb', db: _db };
+        await withIdb(() => Promise.resolve()); // smoke-test open
+        return { kind: 'idb' };
     } catch (e) {
         _backend = 'ls';
         return { kind: 'ls' };
@@ -114,26 +126,31 @@ async function backend() {
 }
 
 async function put(value) {
-    const b = await backend();
-    if (b.kind === 'idb') return idbPut(b.db, value);
+    if ((await backend()).kind === 'idb') {
+        return withIdb((db) => idbPut(db, value));
+    }
     const items = lsGetAll();
     const i = items.findIndex(it => it.local_id === value.local_id);
     if (i >= 0) items[i] = value; else items.push(value);
     lsSetAll(items);
 }
 async function getAll() {
-    const b = await backend();
-    if (b.kind === 'idb') return idbGetAll(b.db);
+    if ((await backend()).kind === 'idb') {
+        return withIdb((db) => idbGetAll(db));
+    }
     return lsGetAll();
 }
 async function remove(key) {
-    const b = await backend();
-    if (b.kind === 'idb') return idbDelete(b.db, key);
+    if ((await backend()).kind === 'idb') {
+        return withIdb((db) => idbDelete(db, key));
+    }
     lsSetAll(lsGetAll().filter(it => it.local_id !== key));
 }
 export async function queueCount() {
-    const b = await backend();
-    return b.kind === 'idb' ? idbCount(b.db) : lsCount();
+    if ((await backend()).kind === 'idb') {
+        return withIdb((db) => idbCount(db));
+    }
+    return lsCount();
 }
 
 // -----------------------------------------------------------------------
@@ -149,13 +166,40 @@ function syncUrlFor(ticket) {
     return '/tsp/tickets/' + encodeURIComponent(ticket) + '/tsr/sync';
 }
 
+// Endpoint that the SERVER uses to accept a TSR payload and write it
+// to the DB. This is the same endpoint Livewire's `submit()` action
+// hits server-side, but here we're POSTing from the browser directly
+// so the offline-queued payloads can be drained when the connection
+// comes back.
+function storeUrlFor(ticket) {
+    if (typeof window !== 'undefined' && window.__tsrStoreUrl) {
+        return window.__tsrStoreUrl;
+    }
+    return '/tsp/tickets/' + encodeURIComponent(ticket) + '/service-report';
+}
+
+// CSRF: read the XSRF-TOKEN cookie and echo it back as
+// X-XSRF-TOKEN (Laravel's VerifyCsrfToken middleware expects
+// exactly that pairing). Fall back to the meta tag value when
+// the cookie isn't set yet.
+function csrfToken() {
+    if (typeof document === 'undefined') return '';
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.content) return meta.content;
+    const m = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+    if (m) return decodeURIComponent(m[1]);
+    return '';
+}
+
 async function postOnce(payload) {
-    return fetch('/tsp/tickets/' + encodeURIComponent(payload.ticket_number) + '/tsr', {
+    return fetch(storeUrlFor(payload.ticket_number), {
         method:  'POST',
         headers: {
             'Content-Type':   'application/json',
             'Accept':         'application/json',
             'X-TSR-Local-Id': payload.local_id,
+            'X-CSRF-TOKEN':   csrfToken(),
+            'X-XSRF-TOKEN':   csrfToken(),
         },
         body: JSON.stringify(payload),
         credentials: 'same-origin',
@@ -166,13 +210,23 @@ async function postOnce(payload) {
 //  Public API
 // -----------------------------------------------------------------------
 
+// Treat the browser as offline if the user flipped the form's
+// "Go offline" toggle, even if navigator.onLine still says we're
+// online. The form keeps this in sync with the Alpine tsrForm
+// component state via window.__tsrForceOffline.
+function effectivelyOffline() {
+    if (typeof navigator !== 'undefined' && ! navigator.onLine) return true;
+    if (typeof window !== 'undefined' && window.__tsrForceOffline === true) return true;
+    return false;
+}
+
 /**
  * Submit a TSR. If we're online we try the server first; on 5xx
  * or network error we queue. If we're offline we queue immediately.
  * Returns the path so the form can show the right success message.
  */
 export async function submitTsr(payload) {
-    if (typeof navigator !== 'undefined' && navigator.onLine) {
+    if (! effectivelyOffline()) {
         try {
             const r = await postOnce(payload);
             if (r.ok) return { path: 'live', localId: payload.local_id };
@@ -186,7 +240,7 @@ export async function submitTsr(payload) {
 }
 
 async function drain() {
-    if (typeof navigator !== 'undefined' && ! navigator.onLine) {
+    if (effectivelyOffline()) {
         return { drained: 0, skipped: 'offline' };
     }
     const items = await getAll();
@@ -203,12 +257,23 @@ async function drain() {
                     }));
                 }
             } else if (r.status >= 400 && r.status < 500) {
-                // Validation error — drop it; the form has to be fixed
-                // by the user before we can ever post it.
-                await remove(it.local_id);
+                // 422 is the server's "this payload is permanently
+                // invalid" (bad signature, etc) — drop it, otherwise
+                // we re-POST every drain cycle forever. Other 4xx
+                // (auth, CSRF, validation the user can fix) we keep
+                // queued so a corrected submit can land later.
+                const isPermanent = r.status === 422;
+                if (isPermanent) {
+                    await remove(it.local_id);
+                }
                 if (typeof window !== 'undefined') {
                     window.dispatchEvent(new CustomEvent('tsr.sync_failed', {
-                        detail: { localId: it.local_id, reason: 'validation' },
+                        detail: {
+                            localId: it.local_id,
+                            reason: 'validation',
+                            status: r.status,
+                            dropped: isPermanent,
+                        },
                     }));
                 }
             }
@@ -249,7 +314,10 @@ if (typeof window !== 'undefined') {
     setInterval(() => drain(), POLL_MS);
     document.addEventListener('DOMContentLoaded', () => drain());
 
-    // Expose a manual trigger so the form's "Sync to Monday" button
-    // can call us without us re-implementing the fetch.
+    // Expose the public API on `window` so the Alpine tsrForm
+    // component can call submitTsr() / drain() without needing to
+    // import the module. The file is loaded as a plain <script>
+    // (not a module) so ES `export`s are not visible globally.
+    window.submitTsr = submitTsr;
     window.__tsrOfflineDrain = drain;
 }

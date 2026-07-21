@@ -22,6 +22,15 @@ new class extends Component
      */
     public array $messages = [];
 
+    // Canonical "this ticket is in a terminal state" boolean.
+    // When true, the input is replaced with a "Ticket is closed"
+    // notice so the TSP understands why the form is gone. The
+    // server-side `Tsp/ChatController::send()` and
+    // `Customer/ChatController::send()` actions also refuse
+    // messages on closed tickets — this prop is purely a UX
+    // affordance for the chat-panel itself.
+    public bool $isClosed = false;
+
     public string $body = '';
 
     public function mount(
@@ -29,15 +38,27 @@ new class extends Component
         string $currentUserName,
         string $currentUserRole,
         array $messages = [],
+        bool $isClosed = false,
     ): void {
         $this->ticketId        = $ticketId;
         $this->currentUserName = $currentUserName;
         $this->currentUserRole = $currentUserRole;
         $this->messages        = $messages;
+        $this->isClosed        = $isClosed;
     }
 
     public function send(): void
     {
+        // Defense in depth — even though the form is replaced with
+        // a "Ticket is closed" notice when `$isClosed` is true, a
+        // stale tab or hand-crafted POST could still hit this
+        // method. Bail out so no message ever lands on a closed
+        // ticket.
+        if ($this->isClosed) {
+            $this->skipRender();
+            return;
+        }
+
         $body = trim($this->body);
         if ($body === '') {
             return;
@@ -123,21 +144,40 @@ new class extends Component
         @endisset
     </div>
 
-    <form wire:submit.prevent="send" class="border-t border-base-300/70 px-4 py-3 flex gap-2">
-        <input
-            type="text"
-            wire:model="body"
-            placeholder="Type a message…"
-            maxlength="2000"
-            autocomplete="off"
-            class="input input-bordered input-sm flex-1 focus:outline-none focus:border-primary"
+    {{-- Chat input row.
+         When the ticket is closed (`$isClosed` is true) the form is
+         replaced with a "Ticket is closed" notice so the TSP
+         understands why the input is missing. The Livewire
+         `send()` method also short-circuits if `isClosed` is true,
+         so a stale tab can never bypass the gate. --}}
+    @if ($isClosed)
+        <div
+            role="status"
+            data-test="chat-closed-notice"
+            class="border-t border-base-300/70 px-4 py-3 flex items-center gap-2 text-sm text-base-content/70 bg-base-200/40"
         >
-        <button
-            type="submit"
-            wire:loading.attr="disabled"
-            class="btn btn-primary btn-sm"
-        >
-            Send
-        </button>
-    </form>
+            <svg class="w-4 h-4 shrink-0 text-base-content/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            <span>This ticket is closed. Chat is read-only.</span>
+        </div>
+    @else
+        <form wire:submit.prevent="send" class="border-t border-base-300/70 px-4 py-3 flex gap-2">
+            <input
+                type="text"
+                wire:model="body"
+                placeholder="Type a message…"
+                maxlength="2000"
+                autocomplete="off"
+                class="input input-bordered input-sm flex-1 focus:outline-none focus:border-primary"
+            >
+            <button
+                type="submit"
+                wire:loading.attr="disabled"
+                class="btn btn-primary btn-sm"
+            >
+                Send
+            </button>
+        </form>
+    @endif
 </div>

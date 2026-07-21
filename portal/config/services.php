@@ -42,7 +42,7 @@ return [
         'tickets_board_id'              => env('MONDAY_TICKETS_BOARD_ID'),
         'service_report_board_id'       => env('MONDAY_SERVICE_REPORT_BOARD_ID'),
 
-        // Tickets board column IDs (5029331350)
+        // Tickets board column IDs (5029331350 — "Tickets - Customer")
         'tickets_columns' => [
             'item_name'       => 'name',
             'account_name'    => 'lookup_mm4f1f6y',
@@ -59,6 +59,17 @@ return [
             'response_status' => 'color_mm4vbp35',   // "NOT YET" → "RESPONDED" once a TSP is assigned
             'subject'         => 'text_mm5c1w5n',     // Customer-submitted subject (separate from item name)
             'time_tracking'   => 'duration_mm4hesrz', // Monday native time_tracking widget — "Response Time"
+            'brand'           => 'text_mm5apcrc',     // MACHINE BRAND — plain text on the Customer Tickets board
+            'model'           => 'text_mm5am2kf',     // MACHINE MODEL — plain text on the Customer Tickets board
+            // NOTE: there is no dedicated "Serial" column on the
+            // Customer Tickets board at the time of writing; serial
+            // stays on the local machines/users table and is reflected
+            // in the TSR item's `serial_number` column instead.
+            // DO NOT confuse the Customer Tickets board (5029331350) with
+            // the Internal Tickets board (5028514175) — that one has
+            // dropdown-type BRAND/MODEL columns (dropdown_mm3gjs5y /
+            // dropdown_mm3gx0tz) which are read-only mirrors of the
+            // connected machine registry, NOT the columns we write to.
         ],
 
         // Service Report (TSR) board column IDs (5029041107) — "EXTERNAL - TSR"
@@ -109,7 +120,7 @@ return [
             'IN-PROGRESS'  => 'Working on it',
             'PENDING'      => 'Waiting for parts',
             'ESCALATED'    => 'Escalated',
-            'COMPLETED'    => 'Resolved',
+            'COMPLETED'    => 'COMPLETED',     // board label index 11 (green)
         ],
 
         // Customer Details board column IDs (5029327268)
