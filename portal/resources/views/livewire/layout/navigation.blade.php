@@ -64,6 +64,12 @@ new class extends Component
                             {{ __('Dashboard') }}
                         @endif
                     </a>
+                    @if($user?->isAdmin() || $user?->isSuperAdmin())
+                        <a href="{{ route('admin.users.index') }}" wire:navigate
+                           @class(['flex items-center h-9 px-3 rounded-lg text-[13px] font-semibold transition', request()->routeIs('admin.users*') ? 'bg-primary/10 text-primary' : 'text-base-content/60 hover:text-base-content hover:bg-base-200/60'])>
+                            {{ __('Users') }}
+                        </a>
+                    @endif
                     @if($user?->isSuperAdmin())
                         <a href="{{ route('admin.deletion-requests') }}" wire:navigate
                            @class(['flex items-center h-9 px-3 rounded-lg text-[13px] font-semibold transition', request()->routeIs('admin.deletion-requests*') ? 'bg-primary/10 text-primary' : 'text-base-content/60 hover:text-base-content hover:bg-base-200/60'])>
@@ -163,6 +169,16 @@ new class extends Component
                 <x-responsive-nav-link :href="route('help')" :active="request()->routeIs('help')">
                     {{ __('Help & Support') }}
                 </x-responsive-nav-link>
+                @if($user?->isAdmin() || $user?->isSuperAdmin())
+                    <x-responsive-nav-link :href="route('admin.users.index')" :active="request()->routeIs('admin.users*')">
+                        {{ __('Users') }}
+                    </x-responsive-nav-link>
+                @endif
+                @if($user?->isSuperAdmin())
+                    <x-responsive-nav-link :href="route('admin.deletion-requests')" :active="request()->routeIs('admin.deletion-requests*')">
+                        {{ __('Delete Requests') }}
+                    </x-responsive-nav-link>
+                @endif
             </div>
         </div>
 

@@ -51,11 +51,20 @@ class LoginForm extends Form
             ]);
         }
 
-        // Block suspended / pending accounts from logging in.
+        // Block non-active accounts from logging in.
         $user = Auth::user();
         if ($user && ! $user->isActive()) {
             Auth::logout();
-            $user->delete();
+
+            // A 'suspended' account is a deliberate, reversible admin
+            // action — it must survive the attempt, otherwise suspending
+            // someone would delete them the moment they tried to sign
+            // in. Only the unclaimed provisioning stubs (status
+            // 'invited') are cleaned up, which is the original intent
+            // of this branch.
+            if ($user->status !== 'suspended') {
+                $user->delete();
+            }
 
             throw ValidationException::withMessages([
                 'form.email' => "Your account is {$user->status}. Contact your administrator.",

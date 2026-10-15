@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\KpiController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Tsp\TspDashboardController;
 use App\Http\Controllers\Customer\CustomerDashboardController;
 use App\Http\Controllers\Customer\TicketController;
@@ -158,6 +159,22 @@ Route::middleware(['auth', 'role:fse,its,manager,admin'])->prefix('tsp')->name('
 // the invites section with one role grant.
 Route::middleware(['auth', 'role:superadmin,admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/kpi', [KpiController::class, 'index'])->name('kpi');
+
+    // User management. Both admin and superadmin may suspend, edit and
+    // delete — but the controller refuses to touch your own account or
+    // any admin/superadmin, and cannot assign a privileged role.
+    Route::get('/users', [UserController::class, 'index'])
+        ->name('users.index');
+    Route::get('/users/{user}/edit', [UserController::class, 'edit'])
+        ->name('users.edit');
+    Route::put('/users/{user}', [UserController::class, 'update'])
+        ->name('users.update');
+    Route::post('/users/{user}/suspend', [UserController::class, 'suspend'])
+        ->name('users.suspend');
+    Route::post('/users/{user}/reactivate', [UserController::class, 'reactivate'])
+        ->name('users.reactivate');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])
+        ->name('users.destroy');
 });
 
 // Account-deletion request inbox. Superadmin-only — non-superadmin
