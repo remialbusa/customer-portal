@@ -28,7 +28,7 @@ class TicketController extends Controller
         return view('customer.tickets.create', [
             'user'         => $user,
             'machines'     => $machines,
-            'requestTypes' => ['Issue', 'Request'],
+            'requestTypes' => ['Repair (Urgent)', 'Request (Non-urgent)'],
         ]);
     }
 
@@ -40,7 +40,7 @@ class TicketController extends Controller
         $data = $request->validate([
             'subject'              => ['required', 'string', 'max:255'],
             'description'          => ['required', 'string', 'max:5000'],
-            'request_type'         => ['required', Rule::in(['Issue', 'Request'])],
+            'request_type'         => ['required', Rule::in(['Repair (Urgent)', 'Request (Non-urgent)'])],
             'machine_id'           => ['nullable', 'exists:machines,id'],
             'brand'                => ['nullable', 'string', 'max:120'],
             'model'                => ['nullable', 'string', 'max:120'],
